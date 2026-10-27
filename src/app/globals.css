@@ -1,22 +1,24 @@
 @import "tailwindcss";
 
-/* Light, soft "device" aesthetic: warm grays, frosted white cards, lime accent,
-   mesh-gradient hero cards. The page is intentionally light-only. */
+/* Leadwise identity: cool lavender neutrals, iris + ember gradients, frosted cards.
+   The page is intentionally light-only, except the dark intro screen. */
 :root {
   color-scheme: light;
-  --page: #dcdcda;
-  --panel: #f3f3f1;
-  --card: rgba(255, 255, 255, 0.72);
-  --ink: #111111;
-  --ink-2: #5a5955;
-  --ink-3: #9a9993;
-  --line: rgba(17, 17, 17, 0.07);
-  --lime: #dcf763;
+  --page: #eeedf3;
+  --panel: #fafafc;
+  --card: rgba(255, 255, 255, 0.78);
+  --ink: #14121f;
+  --ink-2: #57546a;
+  --ink-3: #9b98ad;
+  --line: rgba(20, 18, 31, 0.08);
+  --iris: #5b3df5;
+  --iris-soft: #ece8ff;
+  --ember: #ff5e3a;
 
   /* Tier colors, validated for color-vision deficiency (always paired with a text label). */
   --tier-hot: #e34948;
   --tier-warm: #eda100;
-  --tier-nurture: #1baf7a;
+  --tier-nurture: #2a78d6;
   --tier-disqualify: #9a9993;
 }
 
@@ -28,50 +30,100 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
-  --color-lime: var(--lime);
+  --color-iris: var(--iris);
+  --color-iris-soft: var(--iris-soft);
+  --color-ember: var(--ember);
   --color-hot: var(--tier-hot);
   --color-warm: var(--tier-warm);
   --color-nurture: var(--tier-nurture);
   --color-disqualify: var(--tier-disqualify);
-  --font-sans: var(--font-geist-sans);
-  --font-dot: var(--font-doto);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-bricolage);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--page);
   color: var(--ink);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 .card {
   background: var(--card);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px -12px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 2px rgba(20, 18, 31, 0.04), 0 16px 40px -20px rgba(40, 20, 120, 0.18);
   backdrop-filter: blur(16px);
   border-radius: 28px;
 }
 
-.mesh-green {
-  background:
-    radial-gradient(60% 70% at 20% 95%, #2f9e44 0%, transparent 70%),
-    radial-gradient(55% 60% at 85% 85%, #74c365 0%, transparent 70%),
-    radial-gradient(70% 60% at 50% 10%, #f6c48a 0%, transparent 75%),
-    #b9d79a;
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 30px 80px -30px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(24px) saturate(140%);
 }
 
-.mesh-orange {
+.grad-iris {
   background:
-    radial-gradient(45% 50% at 50% 55%, #ff7a1a 0%, transparent 70%),
-    radial-gradient(60% 60% at 80% 20%, #ffb36b 0%, transparent 70%),
-    radial-gradient(70% 70% at 10% 10%, #b9c8e6 0%, transparent 75%),
-    #e9c6b0;
+    radial-gradient(55% 65% at 15% 95%, #3a1fd1 0%, transparent 70%),
+    radial-gradient(50% 60% at 90% 85%, #8b6cff 0%, transparent 70%),
+    radial-gradient(60% 55% at 70% 0%, #ff8a65 0%, transparent 75%),
+    #6a4ff2;
 }
 
-.mesh-pink {
+.grad-ember {
   background:
-    radial-gradient(50% 50% at 50% 45%, #ff5c7a 0%, transparent 70%),
-    radial-gradient(80% 80% at 80% 90%, #ffc2cf 0%, transparent 70%),
-    #f6a8bb;
+    radial-gradient(45% 55% at 50% 60%, #e8401f 0%, transparent 70%),
+    radial-gradient(60% 60% at 85% 10%, #ffa585 0%, transparent 70%),
+    radial-gradient(70% 70% at 0% 0%, #7c5cff 0%, transparent 75%),
+    #f2643f;
+}
+
+.grad-dusk {
+  background:
+    radial-gradient(50% 60% at 80% 20%, #7c5cff 0%, transparent 70%),
+    radial-gradient(60% 60% at 15% 85%, #ff7a59 0%, transparent 70%),
+    #2a2350;
+}
+
+.intro-bg {
+  background: #0d0a1c;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.75;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6%, -8%) scale(1.12); }
+  100% { transform: translate(-6%, 6%) scale(0.95); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rise {
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+.orb {
+  background: conic-gradient(from 0deg, #5b3df5, #ff5e3a, #ffb199, #a78bfa, #5b3df5);
+  animation: spin-slow 3.2s linear infinite;
+  filter: blur(1px);
 }
 
 .ticks {
@@ -79,5 +131,10 @@ body {
 }
 
 input[type="range"] {
-  accent-color: var(--ink);
+  accent-color: var(--iris);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob, .orb, .rise { animation: none; }
+  html { scroll-behavior: auto; }
 }

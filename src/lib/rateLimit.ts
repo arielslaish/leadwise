@@ -4,6 +4,7 @@
 // Uses Upstash Redis in production. Locally, falls back to in-memory counters.
 // In production without Redis configured, it fails closed (blocks everything).
 
+import { timingSafeEqual } from "node:crypto";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { DAILY_UPLOADS_PER_IP } from "@/config/rubric";
@@ -51,6 +52,18 @@ export function clientIp(req: Request): string {
     req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
     "unknown"
   );
+}
+
+// The site owner sets OWNER_KEY in Vercel and opens the site once with
+// ?owner=<key>; the browser then sends it on every upload and skips both limits.
+// The Anthropic console spend limit remains the hard backstop.
+export function isOwner(req: Request): boolean {
+  const expected = process.env.OWNER_KEY;
+  const given = req.headers.get("x-owner-key");
+  if (!expected || !given) return false;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export type LimitResult = { ok: true } | { ok: false; status: number; error: string };

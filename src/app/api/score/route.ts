@@ -6,7 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { MAX_ROWS, MINUTES_SAVED_PER_ROW } from "@/config/rubric";
 import { cleanRows, parseCsv } from "@/lib/clean";
-import { checkScoreLimits, clientIp } from "@/lib/rateLimit";
+import { checkScoreLimits, clientIp, isOwner } from "@/lib/rateLimit";
 import { scoreLeads } from "@/lib/score";
 
 export const maxDuration = 60;
@@ -17,13 +17,23 @@ export async function POST(req: Request) {
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return Response.json({ error: "Send { csv } under 200KB." }, { status: 400 });
 
-  const rows = parseCsv(body.data.csv);
-  if (rows.length === 0) return Response.json({ error: "No rows found. Check the CSV has a header row." }, { status: 400 });
-  if (rows.length > MAX_ROWS) return Response.json({ error: `Max ${MAX_ROWS} rows per upload.` }, { status: 400 });
+  const { rows: allRows, columns } = parseCsv(body.data.csv);
+  if (allRows.length === 0) return Response.json({ error: "No rows found. Check the CSV has a header row." }, { status: 400 });
+  if (!columns.includes("email") && !columns.includes("company")) {
+    return Response.json(
+      { error: "Couldn't find an email or company column. Name a column \"email\" or \"company\" and try again." },
+      { status: 400 },
+    );
+  }
+  // Long lists are trimmed rather than rejected, so any export works out of the box.
+  const rows = allRows.slice(0, MAX_ROWS);
 
   // Validate before rate-limiting so a malformed file doesn't burn a visitor's quota.
-  const limit = await checkScoreLimits(clientIp(req));
-  if (!limit.ok) return Response.json({ error: limit.error }, { status: limit.status });
+  const owner = isOwner(req);
+  if (!owner) {
+    const limit = await checkScoreLimits(clientIp(req));
+    if (!limit.ok) return Response.json({ error: limit.error }, { status: limit.status });
+  }
 
   const cleaned = cleanRows(rows);
   try {
@@ -35,7 +45,9 @@ export async function POST(req: Request) {
         junkFlagged: cleaned.junkFlagged,
         hot: leads.filter((l) => l.tier === "Hot").length,
         repHoursSaved: Math.round((cleaned.rowsIn * MINUTES_SAVED_PER_ROW) / 6) / 10,
+        truncatedFrom: allRows.length > MAX_ROWS ? allRows.length : null,
       },
+      owner,
       leads,
     });
   } catch (err) {

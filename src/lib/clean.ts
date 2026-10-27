@@ -32,18 +32,21 @@ export type CleanResult = {
 };
 
 // Accept common header spellings so real-world exports work too.
-const HEADER_ALIASES: Record<string, keyof RawRow> = {
-  first_name: "firstName", firstname: "firstName", first: "firstName",
-  last_name: "lastName", lastname: "lastName", last: "lastName",
-  email: "email", email_address: "email",
-  title: "title", job_title: "title",
-  company: "company", company_name: "company", account: "company",
-  company_size: "companySize", employees: "companySize", size: "companySize",
-  industry: "industry",
-  city: "city",
-  country: "country",
-  source: "source", lead_source: "source",
-  notes: "notes", note: "notes", comments: "notes",
+const HEADER_ALIASES: Record<string, keyof RawRow | "fullName"> = {
+  first_name: "firstName", firstname: "firstName", first: "firstName", given_name: "firstName",
+  last_name: "lastName", lastname: "lastName", last: "lastName", surname: "lastName", family_name: "lastName",
+  name: "fullName", full_name: "fullName", contact: "fullName", contact_name: "fullName", lead_name: "fullName",
+  email: "email", email_address: "email", e_mail: "email", work_email: "email", business_email: "email",
+  title: "title", job_title: "title", position: "title", role: "title", jobtitle: "title",
+  company: "company", company_name: "company", account: "company", account_name: "company",
+  organization: "company", organisation: "company", employer: "company",
+  company_size: "companySize", employees: "companySize", size: "companySize", headcount: "companySize",
+  employee_count: "companySize", number_of_employees: "companySize", no_of_employees: "companySize",
+  industry: "industry", vertical: "industry", sector: "industry",
+  city: "city", location: "city",
+  country: "country", country_region: "country", region: "country", hq_country: "country",
+  source: "source", lead_source: "source", channel: "source",
+  notes: "notes", note: "notes", comments: "notes", comment: "notes", description: "notes", message: "notes",
 };
 
 type RawRow = {
@@ -133,20 +136,35 @@ const completeness = (l: CleanLead) =>
   [l.firstName, l.lastName, l.title, l.company, l.industry, l.city, l.country, l.notes]
     .filter(Boolean).length + (l.companySize != null ? 1 : 0);
 
-export function parseCsv(text: string): RawRow[] {
+// Header normalizer: "Job Title", "job-title", "JobTitle " and a BOM all map the same way.
+const normalizeHeader = (h: string) =>
+  h.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+export function parseCsv(text: string): { rows: RawRow[]; columns: (keyof RawRow)[] } {
   const parsed = Papa.parse<Record<string, string>>(text.trim(), {
     header: true,
     skipEmptyLines: "greedy",
-    transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, "_"),
+    transformHeader: normalizeHeader,
   });
-  return parsed.data.map((row) => {
+  const columns = new Set<keyof RawRow>();
+  const rows = parsed.data.map((row) => {
     const out: RawRow = {};
     for (const [key, value] of Object.entries(row)) {
       const field = HEADER_ALIASES[key];
-      if (field && typeof value === "string") out[field] = value.trim();
+      if (!field || typeof value !== "string" || !value.trim()) continue;
+      if (field === "fullName") {
+        const [first, ...rest] = value.trim().split(/\s+/);
+        out.firstName ??= first;
+        out.lastName ??= rest.join(" ");
+        columns.add("firstName");
+      } else {
+        out[field] ??= value.trim();
+        columns.add(field);
+      }
     }
     return out;
   });
+  return { rows, columns: [...columns] };
 }
 
 export function cleanRows(rows: RawRow[]): CleanResult {
