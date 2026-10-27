@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Leadwise
 
-## Getting Started
+**Upload a lead list. See who to call first.**
 
-First, run the development server:
+Leadwise takes a messy CSV of leads (inbound forms, event scans, list imports), cleans it, scores every row with Claude against a transparent ICP rubric, and routes each lead the way a Salesforce record-triggered Flow would.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Built by [Ariel Laish](https://www.linkedin.com/in/ariellaish) as a working demo of GTM engineering: data hygiene, AI lead scoring, routing logic and a deployed backend.
+
+## How it works
+
+```
+CSV upload
+   │
+   ▼
+POST /api/score ──► rate limit (per IP + global daily cap, Upstash Redis)
+   │
+   ├─ 1. Parse      map common column names, 100-row cap
+   ├─ 2. Clean      normalize casing, cities, countries; merge duplicates; flag junk
+   ├─ 3. Score      one batched Claude Haiku call, structured JSON output
+   │                junk rows skip the model; tier is derived in code from the score
+   ▼
+Dashboard (browser)
+   ├─ 4. Route      Salesforce-style Flow: tier → owner queue → follow-up task
+   │                (Hot threshold and SLA are adjustable live)
+   └─ 5. Download   email + consent gate → POST /api/capture → notification email (Resend)
+                    CSV is built in the browser; uploaded data is never stored
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Piece | File |
+|---|---|
+| Scoring rubric (editable) | `src/config/rubric.ts` |
+| Cleaning and dedupe | `src/lib/clean.ts` |
+| Claude scoring | `src/lib/score.ts` |
+| Routing flow | `src/lib/flow.ts` |
+| Rate limiting | `src/lib/rateLimit.ts` |
+| API routes | `src/app/api/score`, `src/app/api/capture` |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js (App Router, TypeScript, Tailwind) on Vercel · Claude Haiku via the Anthropic SDK · Upstash Redis · Resend
 
-## Learn More
+## Run locally
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+cp .env.example .env.local   # add keys; without ANTHROPIC_API_KEY a local rubric scorer is used
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Click **Try sample data** to run the included fictional list (`public/sample-leads.csv`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cost and safety
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- One Claude call per upload, max 100 rows: well under one cent per run.
+- 3 uploads per IP per day, 150 per day overall. Without Redis in production, scoring is refused rather than left unprotected.
+- Uploaded CSVs are processed in memory and never stored or logged.
