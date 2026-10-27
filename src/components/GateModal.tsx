@@ -66,7 +66,7 @@ export function GateModal({
         {state === "done" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm text-ink-2">
-              {format === "pdf" ? "Your branded report has the KPIs, tier mix, routing and every ranked lead." : "Every row is ranked with its score, tier, routing queue and the reason behind it."} Not downloading?{" "}
+              {format === "pdf" ? "Your one-page report has the KPIs, tier mix, routing and the leads to call first." : "Every row is ranked with its score, tier, routing queue and the reason behind it."} Not downloading?{" "}
               <button onClick={() => onDownload(format)} className="underline">
                 Try again
               </button>
