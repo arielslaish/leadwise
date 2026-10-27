@@ -8,6 +8,7 @@ import type { Tier } from "@/config/rubric";
 import { defaultFlowVariables, runLeadFlow, type FlowVariables } from "@/lib/flow";
 import { Breakdown } from "./Breakdown";
 import { FlowCard } from "./FlowCard";
+import { downloadPdf } from "@/lib/report";
 import { GateModal } from "./GateModal";
 import { HireMe } from "./HireMe";
 import { LeadTable } from "./LeadTable";
@@ -41,6 +42,10 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
   function showTier(t: Tier | "All") {
     setFilter(t);
     document.getElementById("ranked")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function downloadReport() {
+    downloadPdf({ fileName, rows, kpis: result.kpis, hotCount, avgScore });
   }
 
   function downloadCsv() {
@@ -81,7 +86,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
             {result.owner && <Tag>Owner mode · no limits</Tag>}
             <PillButton onClick={onReset}>New list</PillButton>
             <PillButton dark onClick={() => setGateOpen(true)}>
-              Download CSV
+              Download
             </PillButton>
           </div>
         </div>
@@ -180,7 +185,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
             sub={`${visible.length} of ${rows.length} leads · scored by Claude, routed by the flow above`}
             action={
               <PillButton dark onClick={() => setGateOpen(true)}>
-                Download CSV
+                Download
               </PillButton>
             }
           />
@@ -222,7 +227,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
       </main>
 
       {gateOpen && (
-        <GateModal stats={{ rowsIn: result.kpis.rowsIn, hot: hotCount }} onDownload={downloadCsv} onClose={() => setGateOpen(false)} />
+        <GateModal stats={{ rowsIn: result.kpis.rowsIn, hot: hotCount }} onDownload={(f) => (f === "pdf" ? downloadReport() : downloadCsv())} onClose={() => setGateOpen(false)} />
       )}
     </div>
   );

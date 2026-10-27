@@ -7,13 +7,15 @@ import { useState } from "react";
 import { CONSENT_TEXT } from "@/config/rubric";
 import { PillButton } from "./ui";
 
+export type Format = "pdf" | "csv";
+
 export function GateModal({
   stats,
   onDownload,
   onClose,
 }: {
   stats: { rowsIn: number; hot: number };
-  onDownload: () => void;
+  onDownload: (format: Format) => void;
   onClose: () => void;
 }) {
   const [email, setEmail] = useState("");
@@ -21,6 +23,7 @@ export function GateModal({
   const [state, setState] = useState<"idle" | "sending" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const [format, setFormat] = useState<Format>("pdf");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,7 +42,7 @@ export function GateModal({
     }
     setCvUrl(data.cvUrl);
     setState("done");
-    onDownload();
+    onDownload(format);
   }
 
   return (
@@ -63,8 +66,8 @@ export function GateModal({
         {state === "done" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm text-ink-2">
-              Every row is ranked with its score, tier, routing queue and the reason behind it. Not downloading?{" "}
-              <button onClick={onDownload} className="underline">
+              {format === "pdf" ? "Your branded report has the KPIs, tier mix, routing and every ranked lead." : "Every row is ranked with its score, tier, routing queue and the reason behind it."} Not downloading?{" "}
+              <button onClick={() => onDownload(format)} className="underline">
                 Try again
               </button>
               .
@@ -91,7 +94,29 @@ export function GateModal({
           </div>
         ) : (
           <form onSubmit={submit} className="mt-4 space-y-4">
-            <p className="text-sm text-ink-2">Enter your work email and the CSV downloads right away.</p>
+            <p className="text-sm text-ink-2">Pick a format, enter your work email, and it downloads right away.</p>
+            <div role="radiogroup" aria-label="File format" className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["pdf", "PDF report", "Branded dashboard to share"],
+                  ["csv", "CSV file", "Raw rows for your CRM"],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === value}
+                  onClick={() => setFormat(value)}
+                  className={`rounded-2xl p-3 text-left ring-1 transition ${
+                    format === value ? "bg-brand-soft ring-brand/50" : "bg-white ring-line hover:bg-white/70"
+                  }`}
+                >
+                  <span className="block text-sm font-medium">{label}</span>
+                  <span className="block text-[11px] text-ink-3">{hint}</span>
+                </button>
+              ))}
+            </div>
             <input
               type="email"
               required
@@ -114,7 +139,7 @@ export function GateModal({
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] text-ink-3">Your uploaded data is never stored.</p>
               <PillButton type="submit" dark disabled={state === "sending" || !consent}>
-                {state === "sending" ? "Sending…" : "Download CSV"}
+                {state === "sending" ? "Sending…" : format === "pdf" ? "Download PDF" : "Download CSV"}
               </PillButton>
             </div>
           </form>

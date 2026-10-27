@@ -3,6 +3,7 @@
 // Home page, kept deliberately sparse: the problem, who built this, then the
 // two ways to try it. How it works is plain text underneath.
 
+import Image from "next/image";
 import { useRef, useState } from "react";
 import { MAX_ROWS, rubric } from "@/config/rubric";
 import { Contact, PROOF } from "./HireMe";
@@ -40,10 +41,15 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
           </div>
 
           <div id="me" className="scroll-mt-24 border-l-2 border-brand/30 pl-6 lg:self-end">
-            <div className="flex items-center gap-3">
-              <span aria-hidden className="grad-forest grid size-11 place-items-center rounded-full font-display text-sm font-semibold text-white">
-                AL
-              </span>
+            <div className="flex items-center gap-4">
+              <Image
+                src="/ariel-laish.webp"
+                alt="Ariel Laish"
+                width={64}
+                height={64}
+                priority
+                className="size-16 rounded-full object-cover ring-2 ring-brand/30 ring-offset-2 ring-offset-page"
+              />
               <div>
                 <p className="font-display text-lg font-medium leading-tight">Ariel Laish</p>
                 <p className="text-xs text-ink-3">GTM engineer · RevOps · AI automation</p>
