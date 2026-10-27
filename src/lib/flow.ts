@@ -2,7 +2,8 @@
 //   Start (Lead created) -> Decision: tier -> Assign owner queue by region
 //   -> Create follow-up Task (priority + due date depend on tier).
 // Runs in the browser, so visitors can change the variables and see routing
-// update live. salesforce/ in the repo holds the matching Flow metadata.
+// update live. salesforce/force-app/.../Leadwise_Lead_Routing.flow-meta.xml is
+// the same logic as deployable Flow metadata; keep the two in sync.
 
 import type { Tier } from "@/config/rubric";
 

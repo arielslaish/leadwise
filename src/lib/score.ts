@@ -91,6 +91,24 @@ function localScore(l: CleanLead) {
   };
 }
 
+const CHUNK_SIZE = 10;
+
+async function scoreChunk(leads: CleanLead[]) {
+  const response = await client.messages.parse({
+    model: MODEL,
+    max_tokens: 4000,
+    // Rubric scoring is a lookup-and-sum task: skipping thinking cuts latency a lot.
+    thinking: { type: "disabled" },
+    output_config: { effort: "low", format: zodOutputFormat(ScoreSchema) },
+    system: SYSTEM,
+    messages: [{ role: "user", content: `Score these leads:\n${leads.map((l) => JSON.stringify(compact(l))).join("\n")}` }],
+  });
+  if (response.stop_reason === "refusal" || !response.parsed_output) {
+    throw new Error(`Scoring failed (stop_reason: ${response.stop_reason})`);
+  }
+  return response.parsed_output.results;
+}
+
 export async function scoreLeads(leads: CleanLead[]): Promise<ScoredLead[]> {
   const valid = leads.filter((l) => !l.junkReason);
   const byId = new Map<number, z.infer<typeof ScoreSchema>["results"][number]>();
@@ -98,19 +116,13 @@ export async function scoreLeads(leads: CleanLead[]): Promise<ScoredLead[]> {
   if (valid.length && localScorerEnabled()) {
     for (const l of valid) byId.set(l.id, localScore(l));
   } else if (valid.length) {
-    const response = await client.messages.parse({
-      model: MODEL,
-      max_tokens: 16000,
-      output_config: { effort: "low", format: zodOutputFormat(ScoreSchema) },
-      system: SYSTEM,
-      messages: [
-        { role: "user", content: `Score these leads:\n${valid.map((l) => JSON.stringify(compact(l))).join("\n")}` },
-      ],
-    });
-    if (response.stop_reason === "refusal" || !response.parsed_output) {
-      throw new Error(`Scoring failed (stop_reason: ${response.stop_reason})`);
-    }
-    for (const r of response.parsed_output.results) byId.set(r.id, r);
+    // Output generation dominates latency, so split into parallel chunks:
+    // wall time ~ one chunk instead of the whole list. Extra cost is only the
+    // repeated system prompt (fractions of a cent).
+    const chunks: CleanLead[][] = [];
+    for (let i = 0; i < valid.length; i += CHUNK_SIZE) chunks.push(valid.slice(i, i + CHUNK_SIZE));
+    const results = await Promise.all(chunks.map(scoreChunk));
+    for (const r of results.flat()) byId.set(r.id, r);
   }
 
   return leads
