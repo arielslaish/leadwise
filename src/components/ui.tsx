@@ -12,13 +12,33 @@ export const tierColor: Record<Tier, string> = {
   Disqualify: "var(--tier-disqualify)",
 };
 
+// Mark: three bars narrowing to one dot, a list filtered down to the lead to call.
+export function LogoMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <defs>
+        <linearGradient id="lw-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#5b3df5" />
+          <stop offset="1" stopColor="#ff5e3a" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="9" fill="url(#lw-g)" />
+      <rect x="7" y="8.5" width="18" height="3" rx="1.5" fill="#fff" opacity=".55" />
+      <rect x="7" y="14.5" width="12" height="3" rx="1.5" fill="#fff" opacity=".8" />
+      <rect x="7" y="20.5" width="6" height="3" rx="1.5" fill="#fff" />
+      <circle cx="19.5" cy="22" r="2.6" fill="#fff" />
+    </svg>
+  );
+}
+
 export function Logo({ light }: { light?: boolean }) {
   return (
-    <span className={`flex items-center gap-2 font-display text-lg font-semibold tracking-tight ${light ? "text-white" : "text-ink"}`}>
-      <span aria-hidden className="grid size-6 place-items-center rounded-lg bg-gradient-to-br from-iris to-ember text-[11px] font-bold text-white">
-        L
+    <span className={`flex items-center gap-2 ${light ? "text-white" : "text-ink"}`}>
+      <LogoMark />
+      <span className="text-xl leading-none tracking-tight">
+        <span className="font-display font-semibold">lead</span>
+        <span className="font-serif text-[1.35rem] italic">wise</span>
       </span>
-      leadwise
     </span>
   );
 }

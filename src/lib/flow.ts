@@ -10,9 +10,18 @@ import type { Tier } from "@/config/rubric";
 export type FlowVariables = {
   hotThreshold: number; // score at/above which a lead routes as Hot
   hotTaskDueDays: number; // SLA for the first touch on Hot leads
+  warmThreshold: number; // score at/above which a lead goes to SDRs instead of Nurture
+  warmTaskDueDays: number; // days until the SDR outreach task is due
+  enterpriseToStrategic: boolean; // Hot Enterprise accounts skip regional AEs
 };
 
-export const defaultFlowVariables: FlowVariables = { hotThreshold: 75, hotTaskDueDays: 1 };
+export const defaultFlowVariables: FlowVariables = {
+  hotThreshold: 75,
+  hotTaskDueDays: 1,
+  warmThreshold: 55,
+  warmTaskDueDays: 3,
+  enterpriseToStrategic: false,
+};
 
 const QUEUE_BY_REGION: Record<string, string> = {
   "North America": "AMER AE Queue",
@@ -30,23 +39,24 @@ export type FlowOutcome = {
 };
 
 export function runLeadFlow(
-  lead: { score: number; tier: Tier; region: string },
+  lead: { score: number; tier: Tier; region: string; segment: string },
   vars: FlowVariables,
 ): FlowOutcome {
   if (lead.tier === "Disqualify") return { route: "Disqualify", owner: "Data Hygiene Queue", task: null };
 
   if (lead.score >= vars.hotThreshold) {
+    const strategic = vars.enterpriseToStrategic && lead.segment === "Enterprise";
     return {
       route: "Hot",
-      owner: QUEUE_BY_REGION[lead.region] ?? "Global AE Queue",
+      owner: strategic ? "Strategic Accounts Queue" : (QUEUE_BY_REGION[lead.region] ?? "Global AE Queue"),
       task: { subject: "Call within SLA: hot inbound", priority: "High", dueInDays: vars.hotTaskDueDays },
     };
   }
-  if (lead.tier === "Warm" || lead.tier === "Hot") {
+  if (lead.score >= vars.warmThreshold) {
     return {
       route: "Warm",
       owner: "SDR Queue",
-      task: { subject: "Personalized outreach sequence", priority: "Normal", dueInDays: 3 },
+      task: { subject: "Personalized outreach sequence", priority: "Normal", dueInDays: vars.warmTaskDueDays },
     };
   }
   return { route: "Nurture", owner: "Marketing Nurture", task: null };

@@ -69,6 +69,50 @@
         </connector>
     </assignments>
     <assignments>
+        <name>Route_Strategic</name>
+        <label>Route Strategic</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>varQueueName</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Strategic_Accounts_Queue</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varCreateTask</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskSubject</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Call within SLA: hot inbound</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskPriority</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>High</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskDueDate</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxHotDueDate</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Queue</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
         <name>Route_Nurture</name>
         <label>Route Nurture</label>
         <locationX>0</locationX>
@@ -151,6 +195,30 @@
             <numberValue>1.0</numberValue>
         </value>
     </constants>
+    <constants>
+        <description>When true, Hot Enterprise leads go to the Strategic Accounts queue instead of regional AEs.</description>
+        <name>RouteEnterpriseToStrategic</name>
+        <dataType>Boolean</dataType>
+        <value>
+            <booleanValue>false</booleanValue>
+        </value>
+    </constants>
+    <constants>
+        <description>Days until the SDR outreach task on a Warm lead is due.</description>
+        <name>WarmTaskDueDays</name>
+        <dataType>Number</dataType>
+        <value>
+            <numberValue>3.0</numberValue>
+        </value>
+    </constants>
+    <constants>
+        <description>Score at or above which a lead goes to SDRs instead of Nurture.</description>
+        <name>WarmThreshold</name>
+        <dataType>Number</dataType>
+        <value>
+            <numberValue>55.0</numberValue>
+        </value>
+    </constants>
     <decisions>
         <name>Decide_Route</name>
         <label>Decide Route</label>
@@ -176,6 +244,35 @@
             <label>Disqualify</label>
         </rules>
         <rules>
+            <name>Strategic</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Lead_Score__c</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <elementReference>HotThreshold</elementReference>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Segment__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Enterprise</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>RouteEnterpriseToStrategic</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Route_Strategic</targetReference>
+            </connector>
+            <label>Strategic</label>
+        </rules>
+        <rules>
             <name>Hot</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
@@ -192,19 +289,12 @@
         </rules>
         <rules>
             <name>Warm</name>
-            <conditionLogic>or</conditionLogic>
+            <conditionLogic>and</conditionLogic>
             <conditions>
-                <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
-                <operator>EqualTo</operator>
+                <leftValueReference>$Record.Lead_Score__c</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
                 <rightValue>
-                    <stringValue>Warm</stringValue>
-                </rightValue>
-            </conditions>
-            <conditions>
-                <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
-                <operator>EqualTo</operator>
-                <rightValue>
-                    <stringValue>Hot</stringValue>
+                    <elementReference>WarmThreshold</elementReference>
                 </rightValue>
             </conditions>
             <connector>
@@ -235,7 +325,7 @@
             <label>Create follow-up</label>
         </rules>
     </decisions>
-    <description>Leadwise lead routing. After a Lead is created with a Leadwise score: Disqualify goes to Data Hygiene, Hot goes to the regional AE queue with a High-priority call task due within the SLA, Warm goes to the SDR queue with an outreach task, everything else goes to Marketing Nurture.</description>
+    <description>Leadwise lead routing. After a Lead is created with a Leadwise score: Disqualify goes to Data Hygiene, Hot goes to the regional AE queue (or Strategic Accounts for Enterprise, when enabled) with a High-priority call task due within the SLA, Warm goes to the SDR queue with an outreach task, everything else goes to Marketing Nurture.</description>
     <environments>Default</environments>
     <formulas>
         <description>Next business touch for Hot leads: today plus the SLA constant.</description>
@@ -259,7 +349,7 @@
     <formulas>
         <name>fxWarmDueDate</name>
         <dataType>Date</dataType>
-        <expression>TODAY() + 3</expression>
+        <expression>TODAY() + {!WarmTaskDueDays}</expression>
     </formulas>
     <interviewLabel>Leadwise Lead Routing {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Leadwise Lead Routing</label>

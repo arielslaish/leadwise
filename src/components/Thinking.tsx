@@ -3,11 +3,19 @@
 // Progress screen while the API works. Early steps advance on a timer; the
 // scoring step waits for the real response, then each step shows the real counts.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Logo } from "./ui";
 import type { ScoreResponse } from "./types";
 
-const STEP_MS = 650;
+const STEP_MS = 1100; // pacing for the quick steps
+const SCORING_MIN_MS = 2800; // the AI step always reads as real work
+const SCORING_NOTES = [
+  "Reading titles for seniority",
+  "Matching industries to the ICP",
+  "Checking company size bands",
+  "Looking for intent in the notes",
+  "Writing a reason for every lead",
+];
 
 export function Thinking({
   fileName,
@@ -21,6 +29,15 @@ export function Thinking({
   onDone: () => void;
 }) {
   const [step, setStep] = useState(0);
+  const scoringStarted = useRef<number | null>(null);
+  const [note, setNote] = useState(0);
+
+  // Rotate what the "AI" is doing while the scoring step runs.
+  useEffect(() => {
+    if (step !== 3) return;
+    const t = setInterval(() => setNote((n) => (n + 1) % SCORING_NOTES.length), 800);
+    return () => clearInterval(t);
+  }, [step]);
 
   // Walk through parse, clean and dedupe, then hold on "Scoring" until the response lands.
   useEffect(() => {
@@ -28,12 +45,18 @@ export function Thinking({
       const t = setTimeout(() => setStep((s) => s + 1), STEP_MS);
       return () => clearTimeout(t);
     }
-    if (result && step < 5) {
-      const t = setTimeout(() => setStep((s) => s + 1), STEP_MS);
+    if (step === 3) scoringStarted.current ??= Date.now();
+    if (result && step === 3) {
+      const wait = Math.max(400, SCORING_MIN_MS - (Date.now() - (scoringStarted.current ?? Date.now())));
+      const t = setTimeout(() => setStep(4), wait);
+      return () => clearTimeout(t);
+    }
+    if (result && step === 4) {
+      const t = setTimeout(() => setStep(5), STEP_MS);
       return () => clearTimeout(t);
     }
     if (step === 5) {
-      const t = setTimeout(onDone, 500);
+      const t = setTimeout(onDone, 700);
       return () => clearTimeout(t);
     }
   }, [step, result, onDone]);
@@ -45,7 +68,7 @@ export function Thinking({
     { label: "Reading your file", working: "Counting rows", done: `${rowCount} rows found` },
     { label: "Cleaning and normalizing", working: "Fixing casing, cities, countries", done: k && `${k.junkFlagged} junk rows flagged` },
     { label: "Merging duplicates", working: "Matching by email", done: k && `${k.duplicatesRemoved} duplicates merged` },
-    { label: "Scoring with Claude", working: "Reading titles, company fit and intent", done: k && `${scored} leads scored against the rubric` },
+    { label: "Scoring with Claude", working: SCORING_NOTES[note] + "…", done: k && `${scored} leads scored against the rubric` },
     { label: "Routing through the Flow", working: "Assigning queues and tasks", done: k && `${k.hot} hot leads sent to AE queues` },
   ];
   const progress = Math.min(100, (step / steps.length) * 100 + (step === 3 && !result ? 8 : 0));

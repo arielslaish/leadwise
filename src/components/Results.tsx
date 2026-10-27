@@ -9,9 +9,10 @@ import { defaultFlowVariables, runLeadFlow, type FlowVariables } from "@/lib/flo
 import { Breakdown } from "./Breakdown";
 import { FlowCard } from "./FlowCard";
 import { GateModal } from "./GateModal";
+import { HireMe } from "./HireMe";
 import { LeadTable } from "./LeadTable";
 import { ScoreStrip } from "./ScoreStrip";
-import { Footer, LINKEDIN_URL, Logo, PillButton, SectionTitle, Tag, TIERS, TierChip, tierColor } from "./ui";
+import { Footer, Logo, PillButton, SectionTitle, Tag, TIERS, TierChip, tierColor } from "./ui";
 import type { ScoreResponse } from "./types";
 
 export function Results({ result, fileName, onReset }: { result: ScoreResponse; fileName: string; onReset: () => void }) {
@@ -161,6 +162,8 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           </div>
         </div>
 
+        <HireMe variant="banner" />
+
         <section id="ranked" className="card scroll-mt-20 p-4 sm:p-6">
           <SectionTitle
             title={filter === "All" ? "Ranked leads" : `${filter} leads`}
@@ -173,16 +176,6 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           />
           <LeadTable rows={visible} />
         </section>
-
-        <div className="grad-dusk flex flex-col items-start justify-between gap-4 rounded-[28px] p-6 text-white sm:flex-row sm:items-center sm:p-8">
-          <div>
-            <p className="font-display text-2xl font-medium">Want this running on your own pipeline?</p>
-            <p className="mt-1 text-sm text-white/70">Built by Ariel Laish: GTM engineering, RevOps and AI automation.</p>
-          </div>
-          <a href={LINKEDIN_URL} target="_blank" rel="noreferrer" className="rounded-full bg-white px-5 py-2.5 text-xs font-medium text-ink">
-            Connect on LinkedIn
-          </a>
-        </div>
 
         <Footer />
       </main>

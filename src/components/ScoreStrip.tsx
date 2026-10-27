@@ -11,13 +11,19 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
   const [active, setActive] = useState<ScoredLead | null>(null);
 
   // Stack dots that land in the same 3-point bucket so none hide each other.
+  // Tall stacks (e.g. dozens of junk rows at 0) are capped and summarized as "+N".
+  const MAX_LEVEL = 4;
   const stackCount = new Map<number, number>();
-  const dots = leads.map((l) => {
+  const all = leads.map((l) => {
     const bucket = Math.round(l.score / 3);
     const level = stackCount.get(bucket) ?? 0;
     stackCount.set(bucket, level + 1);
     return { lead: l, level };
   });
+  const dots = all.filter((d) => d.level < MAX_LEVEL);
+  const overflow = [...stackCount.entries()]
+    .filter(([, n]) => n > MAX_LEVEL)
+    .map(([bucket, n]) => ({ left: Math.min(100, bucket * 3), extra: n - MAX_LEVEL }));
   const top = leads[0];
 
   return (
@@ -30,7 +36,7 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
           </span>
         )}
       </div>
-      <div className="relative h-16" onMouseLeave={() => setActive(null)}>
+      <div className="relative h-20" onMouseLeave={() => setActive(null)}>
         <div className="absolute inset-x-0 bottom-3 h-px bg-ink/10" />
         {dots.map(({ lead, level }) => (
           <button
@@ -47,6 +53,15 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
               style={{ background: tierColor[lead.tier] }}
             />
           </button>
+        ))}
+        {overflow.map((o) => (
+          <span
+            key={o.left}
+            className="absolute -translate-x-1/2 text-[9px] font-medium text-ink-3"
+            style={{ left: `${o.left}%`, bottom: `${10 + MAX_LEVEL * 11}px` }}
+          >
+            +{o.extra}
+          </span>
         ))}
         {active && (
           <div

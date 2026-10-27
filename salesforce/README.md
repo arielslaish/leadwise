@@ -8,7 +8,8 @@ The routing logic the Leadwise dashboard simulates, as deployable Salesforce met
 | `objects/Lead/fields/Lead_Score__c` | Number(3,0), the 0-100 score |
 | `objects/Lead/fields/Lead_Tier__c` | Picklist: Hot, Warm, Nurture, Disqualify |
 | `objects/Lead/fields/Region__c` | Text, the normalized region |
-| `queues/*` | 8 Lead queues the Flow routes into |
+| `objects/Lead/fields/Segment__c` | Text: SMB, Mid-Market, Enterprise |
+| `queues/*` | 9 Lead queues the Flow routes into |
 
 ## Flow logic
 
@@ -16,17 +17,18 @@ The routing logic the Leadwise dashboard simulates, as deployable Salesforce met
 flowchart TD
     S([Lead created]) --> D{Decide route}
     D -- "Tier = Disqualify" --> RD[Queue: Data Hygiene]
+    D -- "Score ≥ HotThreshold, Enterprise,<br/>RouteEnterpriseToStrategic" --> RS[Queue: Strategic Accounts]
     D -- "Score ≥ HotThreshold" --> RH["Queue: regional AE<br/>(AMER / ISR / EMEA / APAC)"]
-    D -- "Tier = Warm or Hot" --> RW[Queue: SDR]
+    D -- "Score ≥ WarmThreshold" --> RW[Queue: SDR]
     D -- default --> RN[Queue: Marketing Nurture]
-    RD & RH & RW & RN --> G[Get queue by DeveloperName] --> O[Assign Lead owner]
+    RD & RS & RH & RW & RN --> G[Get queue by DeveloperName] --> O[Assign Lead owner]
     O --> T{Needs task?}
     T -- "Hot" --> TH["Task: Call within SLA<br/>High, due today + HotTaskDueDays"]
-    T -- "Warm" --> TW["Task: Outreach sequence<br/>Normal, due in 3 days"]
+    T -- "Warm" --> TW["Task: Outreach sequence<br/>Normal, due today + WarmTaskDueDays"]
     T -- "No" --> E([End])
 ```
 
-`HotThreshold` (75) and `HotTaskDueDays` (1) are Flow constants. They are the same two variables visitors adjust on the dashboard.
+`HotThreshold` (75), `HotTaskDueDays` (1), `WarmThreshold` (55), `WarmTaskDueDays` (3) and `RouteEnterpriseToStrategic` (false) are Flow constants: the same five variables visitors adjust on the dashboard.
 
 ## Deploy to a dev org
 

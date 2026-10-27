@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Inter } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
+const serif = Instrument_Serif({ variable: "--font-serif", subsets: ["latin"], weight: "400", style: "italic" });
 
 export const metadata: Metadata = {
   title: "Leadwise: who to call first",
@@ -15,7 +16,7 @@ export const viewport: Viewport = { themeColor: "#0d0a1c" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${bricolage.variable} antialiased`}>
+    <html lang="en" className={`${inter.variable} ${bricolage.variable} ${serif.variable} antialiased`}>
       <body className="min-h-dvh">{children}</body>
     </html>
   );

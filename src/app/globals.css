@@ -39,6 +39,7 @@
   --color-disqualify: var(--tier-disqualify);
   --font-sans: var(--font-inter);
   --font-display: var(--font-bricolage);
+  --font-serif: var(--font-serif);
 }
 
 html {
