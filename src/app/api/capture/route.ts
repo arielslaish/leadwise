@@ -1,10 +1,11 @@
 // POST /api/capture — the download gate. The visitor's email + consent is
-// sent to the owner as a notification email (Resend). The scored CSV itself is
+// sent to the owner as a notification email (Resend). The response hands back
+// the CV link for the success screen; the visitor is never emailed. The scored CSV itself is
 // built in the browser from data already there, so it never touches a server again.
 
 import { Resend } from "resend";
 import { z } from "zod";
-import { CONSENT_TEXT } from "@/config/rubric";
+import { CONSENT_TEXT, CV_URL } from "@/config/rubric";
 import { clientIp, limits } from "@/lib/rateLimit";
 
 const Body = z.object({
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
   const to = process.env.NOTIFY_EMAIL;
   if (!key || !to) {
     console.warn("capture: RESEND_API_KEY or NOTIFY_EMAIL missing, skipping notification");
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, cvUrl: CV_URL });
   }
 
   const when = new Date().toISOString();
@@ -50,5 +51,5 @@ export async function POST(req: Request) {
     console.error("capture: notify failed:", error.message);
     // Don't block the visitor's download because of a notification failure.
   }
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, cvUrl: CV_URL });
 }

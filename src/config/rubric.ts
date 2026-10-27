@@ -76,3 +76,6 @@ export type Tier = (typeof rubric.tiers)[number]["tier"];
 // Shown next to the email field and copied verbatim into the notification email.
 export const CONSENT_TEXT =
   "I agree that Ariel Laish may email me once about my results and possible collaboration. No newsletters, no sharing. Reply 'stop' anytime.";
+
+// Offered on the success screen once the email gate is passed. File lives in public/.
+export const CV_URL = "/Ariel-Laish-CV.pdf";
