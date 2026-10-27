@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Upload a lead list. Leadwise cleans it, scores every row with Claude against a transparent ICP rubric, and routes it like a Salesforce Flow.",
 };
 
-export const viewport: Viewport = { themeColor: "#0d0a1c" };
+export const viewport: Viewport = { themeColor: "#07150f" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { Logo } from "./ui";
 import type { ScoreResponse } from "./types";
 
-const STEP_MS = 1100; // pacing for the quick steps
-const SCORING_MIN_MS = 2800; // the AI step always reads as real work
+const STEP_MS = 1400; // pacing for the quick steps
+const SCORING_MIN_MS = 4500; // the AI step always reads as real work
 const SCORING_NOTES = [
   "Reading titles for seniority",
   "Matching industries to the ICP",
@@ -89,7 +89,7 @@ export function Thinking({
           </div>
 
           <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-ink/5">
-            <div className="h-full rounded-full bg-gradient-to-r from-iris to-ember transition-all duration-700" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-brand to-gold transition-all duration-700" style={{ width: `${progress}%` }} />
           </div>
 
           <ol className="mt-6 space-y-4">
@@ -100,10 +100,10 @@ export function Thinking({
                   <span
                     aria-hidden
                     className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[10px] ${
-                      state === "done" ? "bg-ink text-white" : state === "active" ? "ring-2 ring-iris" : "ring-1 ring-ink/20"
+                      state === "done" ? "bg-ink text-white" : state === "active" ? "ring-2 ring-brand" : "ring-1 ring-ink/20"
                     }`}
                   >
-                    {state === "done" ? "✓" : state === "active" ? <span className="size-1.5 animate-ping rounded-full bg-iris" /> : ""}
+                    {state === "done" ? "✓" : state === "active" ? <span className="size-1.5 animate-ping rounded-full bg-brand" /> : ""}
                   </span>
                   <div>
                     <p className="text-sm font-medium">{s.label}</p>
@@ -113,6 +113,9 @@ export function Thinking({
               );
             })}
           </ol>
+          <p className="mt-7 border-t border-line pt-4 text-center text-[11px] text-ink-3">
+            This engine was built by Ariel Laish, GTM engineer. Imagine it on your pipeline.
+          </p>
         </div>
       </div>
     </div>

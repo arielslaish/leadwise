@@ -1,28 +1,17 @@
 "use client";
 
-// Home page as a story: the problem, the fix (try it), how it works, and who built it.
+// Home page. Above the fold on desktop: the pain, who built this, the two ways
+// to try it, and the problem → fix summary. Below: how it works, then the close.
 
 import { useRef, useState } from "react";
 import { MAX_ROWS, rubric } from "@/config/rubric";
 import { HireMe } from "./HireMe";
-import { Footer, GITHUB_URL, LINKEDIN_URL, Logo, TierChip } from "./ui";
+import { Footer, GITHUB_URL, Logo, TierChip } from "./ui";
 
 const PROBLEMS = [
-  {
-    problem: "Stale, duplicated data",
-    pain: "The same lead three times, \"TLV\" next to \"Tel Aviv\", test rows nobody deleted.",
-    fix: "Normalized, deduplicated and junk-flagged before anyone looks at it.",
-  },
-  {
-    problem: "Gut-feel prioritization",
-    pain: "Reps pick leads by job title and hope. The best accounts wait in the pile.",
-    fix: "Every lead scored 0-100 by AI against a clear rubric, with the reason in one line.",
-  },
-  {
-    problem: "Leads with no owner",
-    pain: "Hot inbound sits unassigned for days while SDRs and AEs argue over it.",
-    fix: "Routed to the right queue with a follow-up task and an SLA, like a Salesforce Flow.",
-  },
+  ["Duplicated, stale records", "Merged, normalized and junk-flagged"],
+  ["Gut-feel prioritization", "Every lead scored 0-100 with a reason"],
+  ["Leads with no owner", "Routed to a queue with a task and SLA"],
 ];
 
 const STEPS = [
@@ -33,7 +22,7 @@ const STEPS = [
 ];
 
 // Colors for the six rubric slices, in order (a stacked bar of the 100 points).
-const SLICE = ["#5b3df5", "#7c5cff", "#a78bfa", "#ff8a65", "#ff5e3a", "#c7c2dc"];
+const SLICE = ["#0f4d34", "#1f6f4a", "#3fa374", "#e9a23b", "#c9761e", "#c9d6ce"];
 
 export function Home({ onSample, onFile, error }: { onSample: () => void; onFile: (f: File) => void; error: string | null }) {
   const input = useRef<HTMLInputElement>(null);
@@ -54,47 +43,40 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-3 sm:px-8">
           <Logo />
           <div className="flex items-center gap-1 text-xs text-ink-2 sm:gap-2">
-            <a href="#problem" className="hidden rounded-full px-3 py-2 hover:bg-white md:block">The problem</a>
             <a href="#how" className="hidden rounded-full px-3 py-2 hover:bg-white md:block">How it works</a>
-            <a href="#about" className="hidden rounded-full px-3 py-2 hover:bg-white md:block">About me</a>
-            <a href={LINKEDIN_URL} target="_blank" rel="noreferrer" className="rounded-full bg-ink px-4 py-2 text-white">
-              Hire me
-            </a>
+            <a href="#about" className="rounded-full bg-ink px-4 py-2 text-white">Built by Ariel</a>
           </div>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-[1400px] space-y-14 px-4 pb-4 pt-8 sm:space-y-20 sm:px-8 sm:pt-14">
-        {/* Hero: the problem, then the two ways to see the fix */}
-        <section>
-          <div className="rise grid gap-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
-            <div>
-              <span className="rounded-full bg-iris-soft px-3 py-1 text-[11px] font-medium text-iris">
-                A working demo by Ariel Laish
-              </span>
-              <h1 className="mt-4 font-display text-4xl font-medium leading-[1.04] tracking-tight sm:text-6xl">
-                Your reps are calling the{" "}
-                <span className="font-serif font-normal italic text-iris">wrong</span> leads.
+      <main className="mx-auto max-w-[1400px] space-y-14 px-4 pb-4 pt-6 sm:space-y-16 sm:px-8 sm:pt-8">
+        {/* Above the fold */}
+        <section className="space-y-4">
+          <div className="rise grid gap-4 lg:grid-cols-[1.35fr_1fr] lg:items-stretch">
+            <div className="flex flex-col justify-center py-2">
+              <h1 className="font-display text-4xl font-medium leading-[1.04] tracking-tight sm:text-[3.4rem]">
+                Your reps are calling the <span className="font-serif font-normal italic text-brand">wrong</span> leads.
               </h1>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-2 sm:text-base">
+                Sound familiar? Duplicates, stale records and no clear owner quietly cost pipeline every week. Drop in a list
+                and watch it get cleaned, scored by AI and routed like Salesforce, in seconds.
+              </p>
             </div>
-            <p className="max-w-lg text-sm leading-relaxed text-ink-2 sm:text-base lg:pb-2">
-              Stale, duplicated, unscored lists quietly cost pipeline every week. Leadwise shows how I fix that: drop in a
-              list and get it cleaned, scored by AI and routed like Salesforce, in seconds.
-            </p>
+            <HireMe variant="hero" />
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.1fr]">
             <button
               onClick={onSample}
-              className="grad-iris group flex min-h-56 flex-col justify-between rounded-[28px] p-6 text-left text-white transition hover:-translate-y-0.5 hover:shadow-2xl sm:p-8"
+              className="grad-forest group flex min-h-52 flex-col justify-between rounded-[28px] p-6 text-left text-white transition hover:-translate-y-0.5 hover:shadow-2xl"
             >
               <span className="w-fit rounded-full bg-white/20 px-3 py-1 text-[11px] font-medium ring-1 ring-white/30">
                 One click · no file needed
               </span>
               <div>
-                <h2 className="font-display text-3xl font-medium tracking-tight">Run the sample list</h2>
-                <p className="mt-1.5 max-w-sm text-sm text-white/85">40 messy, fictional leads: duplicates, test junk and all.</p>
-                <span className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-ink transition group-hover:gap-3">
+                <h2 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">Run the sample list</h2>
+                <p className="mt-1 text-sm text-white/85">40 messy, fictional leads: duplicates, junk and all.</p>
+                <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-ink transition group-hover:gap-3">
                   Score sample leads →
                 </span>
               </div>
@@ -116,17 +98,15 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
                 const f = e.dataTransfer.files[0];
                 if (f) onFile(f);
               }}
-              className={`card flex min-h-56 cursor-pointer items-center gap-5 p-6 transition hover:-translate-y-0.5 sm:p-8 ${
-                dragging ? "ring-2 ring-iris" : ""
-              }`}
+              className={`card flex min-h-52 cursor-pointer p-4 transition hover:-translate-y-0.5 ${dragging ? "ring-2 ring-brand" : ""}`}
             >
-              <div className="flex w-full flex-col items-center rounded-3xl border-2 border-dashed border-ink/10 p-6 text-center">
-                <span aria-hidden className="grid size-11 place-items-center rounded-2xl bg-ink text-lg text-white">↑</span>
-                <h2 className="mt-3 font-display text-2xl font-medium tracking-tight sm:text-3xl">Upload your lead list</h2>
+              <div className="flex w-full flex-col items-center justify-center rounded-3xl border-2 border-dashed border-ink/10 p-5 text-center">
+                <span aria-hidden className="grid size-10 place-items-center rounded-2xl bg-ink text-lg text-white">↑</span>
+                <h2 className="mt-3 font-display text-2xl font-medium tracking-tight">Upload your lead list</h2>
                 <p className="mt-1 text-sm text-ink-2">
-                  Drop a CSV or <span className="font-medium text-iris underline underline-offset-4">browse</span>
+                  Drop a CSV or <span className="font-medium text-brand underline underline-offset-4">browse</span>
                 </p>
-                <p className="mt-2 text-[11px] text-ink-3">Any export · first {MAX_ROWS} rows scored · never stored</p>
+                <p className="mt-2 text-[11px] text-ink-3">Any export · first {MAX_ROWS} rows · never stored</p>
               </div>
               <input
                 ref={input}
@@ -140,32 +120,26 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
                 }}
               />
             </div>
+
+            <div className="card p-5 md:col-span-2 xl:col-span-1">
+              <p className="font-display text-lg font-medium">The problem → the fix</p>
+              <ul className="mt-3 space-y-2.5">
+                {PROBLEMS.map(([problem, fix]) => (
+                  <li key={problem} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
+                    <span className="rounded-xl bg-hot/[0.07] px-3 py-2 text-ink-2">{problem}</span>
+                    <span aria-hidden className="text-ink-3">→</span>
+                    <span className="rounded-xl bg-brand-soft px-3 py-2 text-ink">{fix}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {error && (
-            <div role="alert" className="mt-4 rounded-2xl bg-hot/10 px-4 py-3 text-sm text-hot">
+            <div role="alert" className="rounded-2xl bg-hot/10 px-4 py-3 text-sm text-hot">
               {error}
             </div>
           )}
-        </section>
-
-        {/* Problem → fix */}
-        <section id="problem" className="scroll-mt-20">
-          <h2 className="font-display text-3xl font-medium tracking-tight">Sound familiar?</h2>
-          <p className="mt-1 text-sm text-ink-2">Three problems every revenue team has, and how Leadwise handles each one.</p>
-          <div className="mt-6 grid gap-3 lg:grid-cols-3">
-            {PROBLEMS.map((p) => (
-              <div key={p.problem} className="card flex flex-col p-6">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-hot">The problem</p>
-                <p className="mt-1 font-display text-xl font-medium">{p.problem}</p>
-                <p className="mt-1.5 text-sm text-ink-2">{p.pain}</p>
-                <div className="mt-5 rounded-2xl bg-iris-soft p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-iris">The fix</p>
-                  <p className="mt-1 text-sm text-ink">{p.fix}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </section>
 
         {/* How it works: steps, rubric and routing, kept compact */}
@@ -176,7 +150,7 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
           <ol className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {STEPS.map(([t, d], i) => (
               <li key={t} className="card flex items-center gap-3 p-4">
-                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-iris-soft font-display text-sm font-semibold text-iris">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-soft font-display text-sm font-semibold text-brand">
                   {i + 1}
                 </span>
                 <span>
@@ -218,13 +192,13 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
               </div>
             </div>
 
-            <div className="grad-iris flex flex-col justify-between rounded-[28px] p-6 text-white">
+            <div className="grad-forest flex flex-col justify-between rounded-[28px] p-6 text-white">
               <div>
                 <span className="rounded-full bg-white/20 px-3 py-1 text-[11px] ring-1 ring-white/30">Salesforce Flow logic</span>
                 <h3 className="mt-4 font-display text-2xl font-medium">Routing you can tune live</h3>
                 <p className="mt-2 text-sm leading-relaxed text-white/85">
-                  Score decides the queue, region picks the AE team, and every Hot lead gets a call task inside the SLA.
-                  Move the thresholds on the results page and watch leads re-route.
+                  Score decides the queue, region picks the AE team, and every Hot lead gets a call task inside the SLA. Move
+                  the thresholds on the results page and watch leads re-route.
                 </p>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -248,7 +222,7 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
           </div>
         </section>
 
-        <HireMe variant="full" />
+        <HireMe variant="closing" />
 
         <Footer />
       </main>

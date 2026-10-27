@@ -69,7 +69,7 @@ export function GateModal({
               </button>
               .
             </p>
-            <div className="grad-iris relative overflow-hidden rounded-3xl p-5 text-white">
+            <div className="grad-forest relative overflow-hidden rounded-3xl p-5 text-white">
               <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-medium text-white ring-1 ring-white/40">Hiring?</span>
               <p className="mt-3 font-display text-lg leading-snug">Leadwise was built by Ariel Laish, GTM &amp; AI automation.</p>
               <div className="mt-4 flex flex-wrap gap-2">

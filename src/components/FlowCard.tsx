@@ -130,7 +130,7 @@ export function FlowCard({
           type="checkbox"
           checked={vars.enterpriseToStrategic}
           onChange={(e) => set({ enterpriseToStrategic: e.target.checked })}
-          className="size-4 accent-iris"
+          className="size-4 accent-brand"
         />
       </label>
 

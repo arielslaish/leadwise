@@ -106,7 +106,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
                 filter === t ? "bg-ink text-white" : "bg-white text-ink ring-1 ring-line hover:bg-white/70"
               }`}
             >
-              <span className="size-2 rounded-full" style={{ background: t === "All" ? "var(--iris)" : tierColor[t] }} />
+              <span className="size-2 rounded-full" style={{ background: t === "All" ? "var(--brand)" : tierColor[t] }} />
               {t === "All" ? "All leads" : t}
               <span className={`tabular-nums ${filter === t ? "text-white/60" : "text-ink-3"}`}>
                 {t === "All" ? rows.length : (tierCounts.get(t) ?? 0)}
@@ -118,9 +118,9 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
         <ScoreStrip leads={result.leads} />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <HeroCard className="grad-iris" label="Average lead score" value={avgScore} caption="of 100, excluding junk" />
+          <HeroCard className="grad-forest" label="Average lead score" value={avgScore} caption="of 100, excluding junk" />
           <HeroCard
-            className="grad-ember"
+            className="grad-gold"
             label="Hot accounts"
             value={hotCount}
             caption={`${scored.length ? Math.round((hotCount / scored.length) * 100) : 0}% of clean leads`}
@@ -129,6 +129,8 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
             <FlowCard vars={flowVars} onChange={setFlowVars} outcomes={rows.map((r) => r.flow)} />
           </div>
         </div>
+
+        <HireMe variant="banner" />
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
           <div>
@@ -162,8 +164,6 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           </div>
         </div>
 
-        <HireMe variant="banner" />
-
         <section id="ranked" className="card scroll-mt-20 p-4 sm:p-6">
           <SectionTitle
             title={filter === "All" ? "Ranked leads" : `${filter} leads`}
@@ -191,13 +191,13 @@ function Kpi({
   value,
   label,
   tag,
-  tone = "iris",
+  tone = "brand",
   suffix = "",
 }: {
   value: number;
   label: string;
   tag: string;
-  tone?: "iris" | "gray";
+  tone?: "brand" | "gray";
   suffix?: string;
 }) {
   return (

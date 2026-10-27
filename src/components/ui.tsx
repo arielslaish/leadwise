@@ -18,8 +18,8 @@ export function LogoMark({ size = 28 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
       <defs>
         <linearGradient id="lw-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5b3df5" />
-          <stop offset="1" stopColor="#ff5e3a" />
+          <stop offset="0" stopColor="#0f4d34" />
+          <stop offset="1" stopColor="#e9a23b" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9" fill="url(#lw-g)" />
@@ -52,11 +52,11 @@ export function TierChip({ tier }: { tier: Tier }) {
   );
 }
 
-export function Tag({ children, tone = "iris" }: { children: React.ReactNode; tone?: "iris" | "gray" }) {
+export function Tag({ children, tone = "brand" }: { children: React.ReactNode; tone?: "brand" | "gray" }) {
   return (
     <span
       className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium leading-4 ${
-        tone === "iris" ? "bg-iris-soft text-iris" : "bg-white text-ink-2 ring-1 ring-line"
+        tone === "brand" ? "bg-brand-soft text-brand" : "bg-white text-ink-2 ring-1 ring-line"
       }`}
     >
       {children}
