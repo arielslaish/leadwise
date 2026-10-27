@@ -56,11 +56,48 @@ function compact(l: CleanLead) {
   };
 }
 
+// Local development without an API key: score with the rubric in plain code so
+// the UI can be built and tested for free. Never used in production.
+const localScorerEnabled = () => !process.env.ANTHROPIC_API_KEY && process.env.NODE_ENV !== "production";
+
+function seniorityOf(title: string): (typeof rubric.seniority.levels)[number]["level"] {
+  const t = title.toLowerCase();
+  if (/\b(c[a-z]o|chief|founder|owner|president)\b/.test(t)) return "C-level";
+  if (/\b(vp|svp|evp|vice president|head of)\b/.test(t)) return "VP";
+  if (/\b(director|dir\.)\b/.test(t)) return "Director";
+  if (/\bmanager\b/.test(t)) return "Manager";
+  return "IC";
+}
+
+function localScore(l: CleanLead) {
+  const seniority = seniorityOf(l.title);
+  const size = rubric.companySize.bands.find((b) => b.band === l.sizeBand)?.points ?? 0;
+  const sen = rubric.seniority.levels.find((s) => s.level === seniority)!.points;
+  const ind = rubric.industry.tiers.find((t) => (t.match as readonly string[]).some((m) => l.industry.toLowerCase().replace(/\s/g, "").includes(m.toLowerCase().replace(/\s/g, ""))))?.points ?? 4;
+  const reg = rubric.region.tiers.find((t) => (t.match as readonly string[]).includes(l.region))?.points ?? 3;
+  const n = l.notes.toLowerCase();
+  const signal =
+    /demo|pricing/.test(n) ? rubric.intent.signals[0] :
+    /contract|renewal|ends?\b|ending/.test(n) ? rubric.intent.signals[1] :
+    /evaluat|compar/.test(n) ? rubric.intent.signals[2] :
+    /met at|webinar|call|interested/.test(n) ? rubric.intent.signals[3] : rubric.intent.signals[4];
+  const complete = l.freeEmail ? 5 : 10;
+  return {
+    id: l.id,
+    score: size + sen + ind + reg + signal.points + complete,
+    seniority,
+    intent: signal.points ? signal.signal : "None",
+    reason: `${seniority} at a ${l.sizeBand}-person ${l.industry || "unknown-industry"} company${signal.points ? `; ${signal.signal.toLowerCase()}` : ""}.`,
+  };
+}
+
 export async function scoreLeads(leads: CleanLead[]): Promise<ScoredLead[]> {
   const valid = leads.filter((l) => !l.junkReason);
   const byId = new Map<number, z.infer<typeof ScoreSchema>["results"][number]>();
 
-  if (valid.length) {
+  if (valid.length && localScorerEnabled()) {
+    for (const l of valid) byId.set(l.id, localScore(l));
+  } else if (valid.length) {
     const response = await client.messages.parse({
       model: MODEL,
       max_tokens: 16000,

@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+/* Light, soft "device" aesthetic: warm grays, frosted white cards, lime accent,
+   mesh-gradient hero cards. The page is intentionally light-only. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --page: #dcdcda;
+  --panel: #f3f3f1;
+  --card: rgba(255, 255, 255, 0.72);
+  --ink: #111111;
+  --ink-2: #5a5955;
+  --ink-3: #9a9993;
+  --line: rgba(17, 17, 17, 0.07);
+  --lime: #dcf763;
+
+  /* Tier colors, validated for color-vision deficiency (always paired with a text label). */
+  --tier-hot: #e34948;
+  --tier-warm: #eda100;
+  --tier-nurture: #1baf7a;
+  --tier-disqualify: #9a9993;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-lime: var(--lime);
+  --color-hot: var(--tier-hot);
+  --color-warm: var(--tier-warm);
+  --color-nurture: var(--tier-nurture);
+  --color-disqualify: var(--tier-disqualify);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-dot: var(--font-doto);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px -12px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(16px);
+  border-radius: 28px;
+}
+
+.mesh-green {
+  background:
+    radial-gradient(60% 70% at 20% 95%, #2f9e44 0%, transparent 70%),
+    radial-gradient(55% 60% at 85% 85%, #74c365 0%, transparent 70%),
+    radial-gradient(70% 60% at 50% 10%, #f6c48a 0%, transparent 75%),
+    #b9d79a;
+}
+
+.mesh-orange {
+  background:
+    radial-gradient(45% 50% at 50% 55%, #ff7a1a 0%, transparent 70%),
+    radial-gradient(60% 60% at 80% 20%, #ffb36b 0%, transparent 70%),
+    radial-gradient(70% 70% at 10% 10%, #b9c8e6 0%, transparent 75%),
+    #e9c6b0;
+}
+
+.mesh-pink {
+  background:
+    radial-gradient(50% 50% at 50% 45%, #ff5c7a 0%, transparent 70%),
+    radial-gradient(80% 80% at 80% 90%, #ffc2cf 0%, transparent 70%),
+    #f6a8bb;
+}
+
+.ticks {
+  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0 1px, transparent 1px 7px);
+}
+
+input[type="range"] {
+  accent-color: var(--ink);
 }
