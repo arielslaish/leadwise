@@ -72,3 +72,7 @@ export const rubric = {
 } as const;
 
 export type Tier = (typeof rubric.tiers)[number]["tier"];
+
+// Shown next to the email field and copied verbatim into the notification email.
+export const CONSENT_TEXT =
+  "I agree that Ariel Laish may email me once about my results and possible collaboration. No newsletters, no sharing. Reply 'stop' anytime.";
