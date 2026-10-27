@@ -2,6 +2,7 @@
 
 // First screen: the pain, the fix, and who built it, on one frosted card.
 
+import { Contact } from "./HireMe";
 import { LINKEDIN_URL, Logo } from "./ui";
 
 export function Intro({ onStart, onHowItWorks }: { onStart: () => void; onHowItWorks: () => void }) {
@@ -9,8 +10,8 @@ export function Intro({ onStart, onHowItWorks }: { onStart: () => void; onHowItW
     <div className="intro-bg relative flex min-h-dvh flex-col overflow-hidden text-white">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="blob left-[-10%] top-[-10%] size-[60vmax] bg-[#1f6f4a]" />
-        <div className="blob bottom-[-20%] right-[-15%] size-[50vmax] bg-[#c98328] opacity-60" style={{ animationDelay: "-6s" }} />
-        <div className="blob left-[35%] top-[40%] size-[35vmax] bg-[#2e8b57] opacity-50" style={{ animationDelay: "-12s" }} />
+        <div className="blob bottom-[-20%] right-[-15%] size-[50vmax] bg-[#2fae6b] opacity-45" style={{ animationDelay: "-6s" }} />
+        <div className="blob left-[35%] top-[40%] size-[35vmax] bg-[#0b3b2a] opacity-80" style={{ animationDelay: "-12s" }} />
       </div>
 
       <header className="relative z-10 px-5 py-5 sm:px-10">
@@ -20,11 +21,11 @@ export function Intro({ onStart, onHowItWorks }: { onStart: () => void; onHowItW
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-8">
         <div className="glass rise w-full max-w-2xl rounded-[36px] p-7 transition duration-500 hover:-translate-y-1 hover:bg-white/[0.11] sm:p-12">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] text-white/80 ring-1 ring-white/20">
-            <span className="size-1.5 rounded-full bg-gold" />
+            <span className="size-1.5 rounded-full bg-mint" />
             Lead scoring demo · built by Ariel Laish
           </span>
           <h1 className="mt-6 font-display text-4xl font-medium leading-[1.05] tracking-tight sm:text-6xl">
-            Tired of fighting <span className="font-serif font-normal italic text-[#f2c14e]">messy</span> lead data?
+            Tired of fighting <span className="font-serif font-normal italic text-[#8be3b0]">messy</span> lead data?
           </h1>
           <p className="mt-5 max-w-lg text-sm leading-relaxed text-white/75 sm:text-base">
             Drop in a messy list. Leadwise cleans it, scores every lead with AI and tells your reps exactly who to call first.
@@ -39,6 +40,9 @@ export function Intro({ onStart, onHowItWorks }: { onStart: () => void; onHowItW
               , a GTM engineer. I built this to show what I can build for your team.{" "}
               <span className="text-white">If I can do this for free, imagine it running on your pipeline full-time.</span>
             </p>
+            <div className="mt-3">
+              <Contact dark />
+            </div>
           </div>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">

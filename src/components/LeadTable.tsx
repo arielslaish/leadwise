@@ -24,17 +24,17 @@ export function LeadTable({ rows }: { rows: Row[] }) {
 
   return (
     <>
-      <div className="hidden overflow-x-auto lg:block">
+      <div className="hidden max-h-[620px] overflow-auto rounded-2xl lg:block">
         <table className="w-full text-left text-xs">
-          <thead className="text-[10px] uppercase tracking-wide text-ink-3">
+          <thead className="sticky top-0 z-10 bg-panel text-[10px] uppercase tracking-wide text-ink-3">
             <tr>
-              <th className="pb-3 pl-2 font-medium">#</th>
-              <th className="pb-3 font-medium">Lead</th>
-              <th className="pb-3 font-medium">Company</th>
-              <th className="pb-3 font-medium">Score</th>
-              <th className="pb-3 font-medium">Tier</th>
-              <th className="pb-3 font-medium">Routed to</th>
-              <th className="pb-3 pr-2 font-medium">Why</th>
+              <th className="py-3 pl-2 font-medium">#</th>
+              <th className="py-3 font-medium">Lead</th>
+              <th className="py-3 font-medium">Company</th>
+              <th className="py-3 font-medium">Score</th>
+              <th className="py-3 font-medium">Tier</th>
+              <th className="py-3 font-medium">Routed to</th>
+              <th className="py-3 pr-2 font-medium">Why</th>
             </tr>
           </thead>
           <tbody>
@@ -74,7 +74,7 @@ export function LeadTable({ rows }: { rows: Row[] }) {
         </table>
       </div>
 
-      <ul className="space-y-3 lg:hidden">
+      <ul className="max-h-[70vh] space-y-3 overflow-y-auto lg:hidden">
         {rows.map(({ lead, flow }, i) => (
           <li key={lead.id} className="rounded-2xl bg-white/70 p-4 ring-1 ring-line">
             <div className="flex items-start justify-between gap-3">

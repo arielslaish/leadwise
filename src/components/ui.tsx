@@ -19,7 +19,7 @@ export function LogoMark({ size = 28 }: { size?: number }) {
       <defs>
         <linearGradient id="lw-g" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#0f4d34" />
-          <stop offset="1" stopColor="#e9a23b" />
+          <stop offset="1" stopColor="#34c27a" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9" fill="url(#lw-g)" />

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Leadwise identity: warm stone neutrals, forest green + gold gradients, frosted cards.
+/* Leadwise identity: warm stone neutrals, dark-to-bright green gradients, frosted cards.
    The page is intentionally light-only, except the dark intro screen. */
 :root {
   color-scheme: light;
@@ -13,7 +13,7 @@
   --line: rgba(16, 32, 26, 0.08);
   --brand: #1f6f4a;
   --brand-soft: #e2f0e7;
-  --gold: #e9a23b;
+  --mint: #34c27a;
 
   /* Tier colors, validated for color-vision deficiency (always paired with a text label). */
   --tier-hot: #e34948;
@@ -32,7 +32,7 @@
   --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
-  --color-gold: var(--gold);
+  --color-mint: var(--mint);
   --color-hot: var(--tier-hot);
   --color-warm: var(--tier-warm);
   --color-nurture: var(--tier-nurture);
@@ -69,25 +69,23 @@ body {
 
 .grad-forest {
   background:
-    radial-gradient(55% 65% at 12% 95%, #0b3b2a 0%, transparent 70%),
-    radial-gradient(50% 60% at 92% 85%, #2e8b57 0%, transparent 70%),
-    radial-gradient(60% 55% at 75% 0%, #e9a23b 0%, transparent 70%),
-    #1f6f4a;
+    radial-gradient(60% 70% at 10% 100%, #0b3b2a 0%, transparent 70%),
+    radial-gradient(55% 60% at 90% 0%, #4fd08a 0%, transparent 70%),
+    #1f7a4f;
 }
 
-.grad-gold {
+.grad-bright {
   background:
-    radial-gradient(45% 55% at 50% 60%, #b8651a 0%, transparent 70%),
-    radial-gradient(60% 60% at 85% 10%, #f2c14e 0%, transparent 70%),
-    radial-gradient(70% 70% at 0% 0%, #2e8b57 0%, transparent 75%),
-    #c98328;
+    radial-gradient(55% 65% at 15% 90%, #157a48 0%, transparent 70%),
+    radial-gradient(60% 60% at 85% 10%, #8be3b0 0%, transparent 70%),
+    #2fae6b;
 }
 
 .grad-deep {
   background:
-    radial-gradient(50% 60% at 85% 15%, #2e8b57 0%, transparent 70%),
-    radial-gradient(55% 60% at 10% 95%, #b8651a 0%, transparent 70%),
-    #0e2a1f;
+    radial-gradient(55% 65% at 90% 10%, #2e8b57 0%, transparent 70%),
+    radial-gradient(50% 60% at 5% 100%, #13583a 0%, transparent 70%),
+    #0c2a1e;
 }
 
 .intro-bg {
@@ -122,7 +120,7 @@ body {
 }
 
 .orb {
-  background: conic-gradient(from 0deg, #0f4d34, #2e8b57, #f2c14e, #e9a23b, #0f4d34);
+  background: conic-gradient(from 0deg, #0f4d34, #2e8b57, #8be3b0, #34c27a, #0f4d34);
   animation: spin-slow 3.2s linear infinite;
   filter: blur(1px);
 }

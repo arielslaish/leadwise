@@ -24,7 +24,17 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
   const hotCount = rows.filter((r) => r.flow.route === "Hot").length;
   const scored = rows.filter((r) => r.lead.tier !== "Disqualify");
   const avgScore = scored.length ? Math.round(scored.reduce((s, r) => s + r.lead.score, 0) / scored.length) : 0;
-  const visible = filter === "All" ? rows : rows.filter((r) => r.lead.tier === filter);
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const visible = rows.filter(
+    (r) =>
+      (filter === "All" || r.lead.tier === filter) &&
+      (!q ||
+        [r.lead.firstName, r.lead.lastName, r.lead.company, r.lead.title, r.lead.region, r.flow.owner]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)),
+  );
   const tierCounts = new Map<Tier, number>();
   for (const r of rows) tierCounts.set(r.lead.tier, (tierCounts.get(r.lead.tier) ?? 0) + 1);
 
@@ -120,7 +130,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <HeroCard className="grad-forest" label="Average lead score" value={avgScore} caption="of 100, excluding junk" />
           <HeroCard
-            className="grad-gold"
+            className="grad-bright"
             label="Hot accounts"
             value={hotCount}
             caption={`${scored.length ? Math.round((hotCount / scored.length) * 100) : 0}% of clean leads`}
@@ -130,7 +140,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           </div>
         </div>
 
-        <HireMe variant="banner" />
+        <HireMe />
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
           <div>
@@ -167,13 +177,44 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
         <section id="ranked" className="card scroll-mt-20 p-4 sm:p-6">
           <SectionTitle
             title={filter === "All" ? "Ranked leads" : `${filter} leads`}
-            sub={`${visible.length} leads · scored by Claude, routed by the flow above`}
+            sub={`${visible.length} of ${rows.length} leads · scored by Claude, routed by the flow above`}
             action={
               <PillButton dark onClick={() => setGateOpen(true)}>
                 Download CSV
               </PillButton>
             }
           />
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+              {filter !== "All" && (
+                <button
+                  onClick={() => setFilter("All")}
+                  className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white"
+                >
+                  ← All leads
+                </button>
+              )}
+              {TIERS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFilter(filter === t ? "All" : t)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] ring-1 transition ${
+                    filter === t ? "bg-brand-soft ring-brand/40" : "bg-white ring-line hover:bg-white/70"
+                  }`}
+                >
+                  <span className="size-1.5 rounded-full" style={{ background: tierColor[t] }} />
+                  {t}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, company, queue…"
+              className="w-full rounded-full bg-white px-4 py-2 text-xs ring-1 ring-line outline-none focus:ring-brand/50 sm:w-64"
+            />
+          </div>
           <LeadTable rows={visible} />
         </section>
 

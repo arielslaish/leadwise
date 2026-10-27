@@ -89,7 +89,7 @@ export function Thinking({
           </div>
 
           <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-ink/5">
-            <div className="h-full rounded-full bg-gradient-to-r from-brand to-gold transition-all duration-700" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-brand to-mint transition-all duration-700" style={{ width: `${progress}%` }} />
           </div>
 
           <ol className="mt-6 space-y-4">
