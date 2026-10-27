@@ -1,0 +1,41 @@
+first_name,last_name,email,title,company,company_size,industry,city,country,source,notes
+Maya,Cohen,maya.cohen@brightloop.io,VP Sales,Brightloop,120,B2B SaaS,TLV,Israel,Inbound demo form,Requested a demo for Q1 rollout
+maya,cohen,Maya.Cohen@Brightloop.io,vp sales,brightloop,120,SaaS,Tel Aviv,IL,Webinar,Asked about pricing tiers
+Daniel,Reyes,dreyes@quantafin.com,Chief Revenue Officer,QuantaFin,850,Fintech,NYC,USA,Event - SaaStr,Contract with current vendor ends in March
+Priya,Nair,priya@nimbusdata.ai,Director of RevOps,Nimbus Data,340,Data/AI,New York,United States,Inbound demo form,Evaluating 3 vendors this quarter
+Tom,Becker,tom.becker@helixsecure.de,Head of Sales Operations,HelixSecure,600,Cybersecurity,Berlin,Germany,Import - ZoomInfo,
+Sarah,Kim,sarah.kim@gmail.com,Founder,Sarah Kim Consulting,1,Consulting,Austin,USA,Inbound newsletter,Just browsing
+test,test,test@test.com,test,test,,,,,Inbound demo form,asdf
+Lior,Ben-David,lior@cartwise.co,CEO,Cartwise,45,E-commerce,Tel-Aviv,Israel,Event - Cybertech,Wants a call next week
+James,O'Neill,james.oneill@ledgerpoint.co.uk,Sales Manager,LedgerPoint,210,Fintech,London,UK,Webinar,
+Ana,Souza,ana.souza@vendalab.com.br,SDR,VendaLab,60,Martech,Sao Paulo,Brazil,Import - Apollo,
+Noa,Levi,noa.levi@pulsehr.io,VP Marketing,PulseHR,95,HR tech,Herzliya,Israel,Inbound demo form,Pricing request for 40 seats
+Daniel,Reyes,DREYES@QUANTAFIN.COM,CRO,Quantafin Inc.,850,Fintech,New York City,US,Import - Apollo,
+Kevin,Walsh,kwalsh@stackforge.dev,Software Engineer,StackForge,2200,Software,San Francisco,USA,Webinar,
+Emma,Larsen,emma@fjordanalytics.no,COO,Fjord Analytics,75,Data/AI,Oslo,Norway,Event - Web Summit,Current tool renewal in 60 days
+Ravi,Patel,ravi.patel@orbitcloud.com,Director Sales Enablement,OrbitCloud,1500,B2B SaaS,Toronto,Canada,Inbound demo form,Comparing us with two competitors
+asdf,asdf,asdf@asdf,asdf,asdf,,,,,Inbound demo form,
+Yael,Shapiro,yael@greenroute.co.il,Operations Manager,GreenRoute Logistics,300,Logistics,Haifa,Israel,Import - ZoomInfo,
+Chris,Doyle,chris.doyle@meridianhq.com,VP Revenue Operations,Meridian,450,B2B SaaS,Boston,USA,Event - SaaStr,Contract ending with Clari in Q2
+Lena,Fischer,lena.fischer@kontor.de,Marketing Coordinator,Kontor GmbH,30,Other,Munich,Germany,Webinar,
+Omar,Haddad,omar@deskly.io,Head of Growth,Deskly,18,B2B SaaS,Dubai,UAE,Inbound newsletter,
+Priya,Nair,PRIYA@NIMBUSDATA.AI,Dir. RevOps,Nimbus Data Inc,340,Data / AI,NYC,USA,Event - SaaStr,Met at booth
+Mark,Thompson,mark.t@hotmail.com,Sales,,,,,USA,Inbound demo form,
+Julia,Rossi,julia.rossi@tessera.it,CFO,Tessera,1200,Fintech,Milan,Italy,Import - Apollo,
+Ben,Carter,ben@sparkmail.app,Account Executive,Sparkmail,25,Martech,Sydney,Australia,Webinar,
+Hannah,Gold,hannah.gold@vectorhealth.com,Chief Marketing Officer,Vector Health,5500,Healthcare,Chicago,USA,Event - HIMSS,Evaluating ABM platforms
+Itai,Mizrahi,itai@runwayops.com,Founder & CEO,RunwayOps,12,B2B SaaS,Tel Aviv-Yafo,Israel,Inbound demo form,Demo request
+Sofia,Martinez,sofia.m@clarityhr.com,HR Generalist,ClarityHR,140,HR tech,Madrid,Spain,Webinar,
+Alex,Novak,alex.novak@ironbridge.cz,IT Manager,IronBridge,220,Tech services,Prague,Czech Republic,Import - ZoomInfo,
+Grace,Liu,grace.liu@lumenpay.com,SVP Sales,LumenPay,700,Fintech,SF,USA,Inbound demo form,Needs pricing before board meeting
+Ethan,Brooks,ebrooks@summitretail.com,Store Manager,Summit Retail,3000,Retail,Denver,USA,Event - NRF,
+Shira,Katz,shira@datapilot.io,VP Product,DataPilot,160,Data/AI,ramat gan,israel,Webinar,Interested in integrations
+Liam,Murphy,liam.murphy@,Sales Director,Northbeam Labs,90,B2B SaaS,Dublin,Ireland,Import - Apollo,
+Nina,Petrova,nina@ticketly.io,Customer Success Manager,Ticketly,55,B2B SaaS,London,United Kingdom,Webinar,
+Grace,Liu,grace.liu@lumenpay.com,SVP of Sales,LumenPay Inc,700,Fintech,San Francisco,USA,Event - Money20/20,Follow up on pricing
+Ori,Sasson,ori.sasson@shieldlayer.com,CISO,ShieldLayer,410,Cybersecurity,TLV,ISR,Event - Cybertech,Contract ending with current SIEM vendor
+Mia,Wong,mia.wong@stellarcrm.com,Intern,StellarCRM,800,B2B SaaS,Singapore,Singapore,Webinar,
+David,Green,david@noreply.com,N/A,N/A,,,,,Import - Apollo,
+Rachel,Adler,rachel.adler@paywave.com,Director of Finance,PayWave,260,Fintech,NY,USA,Inbound newsletter,
+Felix,Wagner,felix@buildkit.dev,CTO,Buildkit,35,Software,Vienna,Austria,Inbound demo form,Evaluating vendors for Q1
+Tamar,Erez,tamar.erez@flowdesk.io,Revenue Operations Manager,Flowdesk,180,B2B SaaS,Tel Aviv,Israel,Event - Cybertech,
