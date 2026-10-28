@@ -1,18 +1,29 @@
-// Mirrors a Salesforce record-triggered Flow on Lead (after save):
-//   Start (Lead created) -> Decision: tier -> Assign owner queue by region
-//   -> Create follow-up Task (priority + due date depend on tier).
-// Runs in the browser, so visitors can change the variables and see routing
-// update live. salesforce/force-app/.../Leadwise_Lead_Routing.flow-meta.xml is
-// the same logic as deployable Flow metadata; keep the two in sync.
+// The single source of truth for tier and routing. Every view (dashboard,
+// CSV, PDF) calls classifyLead with the same variables, so their counts agree.
+//
+// Mirrors the Salesforce record-triggered Flow in
+// salesforce/force-app/.../Leadwise_Lead_Routing.flow-meta.xml: Leadwise sets
+// Data_Quality__c and Lead_Tier__c, the Flow routes on them. Keep the two in sync.
+//
+// Order of decisions:
+//   1. Invalid data              -> Disqualify, Data Hygiene (fix before outreach)
+//   2. Explicitly not interested -> Disqualify, Do Not Contact
+//      (unless there is also a strong buying signal: conflicting, sent to review)
+//   3. Score >= Hot threshold    -> Hot, regional AE (or Strategic), call task
+//   4. Score >= Warm threshold   -> Warm, SDR, outreach task
+//   5. Strong buying signal      -> Warm, SDR (optional promotion, on by default)
+//   6. Everything else (valid)   -> Nurture, never Disqualify for a low score
 
 import type { Tier } from "@/config/rubric";
+import type { ScoredLead } from "./score";
 
 export type FlowVariables = {
-  hotThreshold: number; // score at/above which a lead routes as Hot
+  hotThreshold: number; // score at/above which a lead is Hot
   hotTaskDueDays: number; // SLA for the first touch on Hot leads
-  warmThreshold: number; // score at/above which a lead goes to SDRs instead of Nurture
+  warmThreshold: number; // score at/above which a lead is Warm
   warmTaskDueDays: number; // days until the SDR outreach task is due
   enterpriseToStrategic: boolean; // Hot Enterprise accounts skip regional AEs
+  promoteStrongSignals: boolean; // a strong buying signal lifts a low score to Warm
 };
 
 export const defaultFlowVariables: FlowVariables = {
@@ -21,6 +32,7 @@ export const defaultFlowVariables: FlowVariables = {
   warmThreshold: 55,
   warmTaskDueDays: 3,
   enterpriseToStrategic: false,
+  promoteStrongSignals: true,
 };
 
 const QUEUE_BY_REGION: Record<string, string> = {
@@ -32,32 +44,80 @@ const QUEUE_BY_REGION: Record<string, string> = {
   ANZ: "APAC AE Queue",
 };
 
+export type Task = { subject: string; priority: "High" | "Normal" | "Low"; dueInDays: number };
+
 export type FlowOutcome = {
-  route: "Hot" | "Warm" | "Nurture" | "Disqualify";
+  tier: Tier;
   owner: string;
-  task: { subject: string; priority: "High" | "Normal" | "Low"; dueInDays: number } | null;
+  task: Task | null;
+  taskLabel: string; // always filled, so exports never show a silent blank
+  why: string; // plain-English routing decision
 };
 
-export function runLeadFlow(
-  lead: { score: number; tier: Tier; region: string; segment: string },
-  vars: FlowVariables,
-): FlowOutcome {
-  if (lead.tier === "Disqualify") return { route: "Disqualify", owner: "Data Hygiene Queue", task: null };
+const days = (n: number) => (n === 0 ? "today" : `in ${n} day${n > 1 ? "s" : ""}`);
+export const taskText = (t: Task) => `${t.subject} (${t.priority}, due ${days(t.dueInDays)})`;
+
+type LeadForFlow = Pick<ScoredLead, "score" | "region" | "segment" | "quality" | "issues" | "notInterested" | "intent" | "intentStrength">;
+
+export function classifyLead(lead: LeadForFlow, vars: FlowVariables): FlowOutcome {
+  const withTask = (o: Omit<FlowOutcome, "taskLabel">): FlowOutcome => ({ ...o, taskLabel: o.task ? taskText(o.task) : "" });
+  const review = lead.quality === "Needs review" ? " Data needs a quick review." : "";
+
+  if (lead.quality === "Invalid") {
+    const errors = lead.issues.filter((i) => i.severity === "error").map((i) => i.label.toLowerCase());
+    return withTask({
+      tier: "Disqualify",
+      owner: "Data Hygiene Queue",
+      task: { subject: "Fix record before outreach", priority: "Low", dueInDays: 2 },
+      why: `Invalid data: ${errors.join("; ")}.`,
+    });
+  }
+
+  if (lead.notInterested) {
+    if (lead.intentStrength === "Strong") {
+      return withTask({
+        tier: "Nurture",
+        owner: "Marketing Nurture",
+        task: { subject: "Review conflicting signals", priority: "Normal", dueInDays: vars.warmTaskDueDays },
+        why: `Conflicting signals: "${lead.intent}" but also not interested. Held in Nurture for a human to review.`,
+      });
+    }
+    return { tier: "Disqualify", owner: "Do Not Contact", task: null, taskLabel: "None: asked not to be contacted", why: "Explicitly not interested." };
+  }
 
   if (lead.score >= vars.hotThreshold) {
     const strategic = vars.enterpriseToStrategic && lead.segment === "Enterprise";
-    return {
-      route: "Hot",
+    return withTask({
+      tier: "Hot",
       owner: strategic ? "Strategic Accounts Queue" : (QUEUE_BY_REGION[lead.region] ?? "Global AE Queue"),
-      task: { subject: "Call within SLA: hot inbound", priority: "High", dueInDays: vars.hotTaskDueDays },
-    };
+      task: { subject: "Call within SLA: hot lead", priority: "High", dueInDays: vars.hotTaskDueDays },
+      why: `Score ${lead.score} is at or above the Hot threshold (${vars.hotThreshold}).${strategic ? " Enterprise account, so Strategic AEs." : ""}${review}`,
+    });
   }
+
   if (lead.score >= vars.warmThreshold) {
-    return {
-      route: "Warm",
+    return withTask({
+      tier: "Warm",
       owner: "SDR Queue",
       task: { subject: "Personalized outreach sequence", priority: "Normal", dueInDays: vars.warmTaskDueDays },
-    };
+      why: `Score ${lead.score} is at or above the Warm threshold (${vars.warmThreshold}).${review}`,
+    });
   }
-  return { route: "Nurture", owner: "Marketing Nurture", task: null };
+
+  if (vars.promoteStrongSignals && lead.intentStrength === "Strong") {
+    return withTask({
+      tier: "Warm",
+      owner: "SDR Queue",
+      task: { subject: "Follow up on buying signal", priority: "Normal", dueInDays: vars.warmTaskDueDays },
+      why: `Strong buying signal ("${lead.intent}") promoted to Warm even though the score is ${lead.score}.${review}`,
+    });
+  }
+
+  return {
+    tier: "Nurture",
+    owner: "Marketing Nurture",
+    task: null,
+    taskLabel: "None: added to nurture sequence",
+    why: `Valid lead, score ${lead.score} is below the Warm threshold (${vars.warmThreshold}), so it stays in Nurture.${review}`,
+  };
 }

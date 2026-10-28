@@ -5,7 +5,7 @@
 
 import { defaultFlowVariables, type FlowOutcome, type FlowVariables } from "@/lib/flow";
 
-const STEPS = ["Lead created", "Decision: score", "Assign queue", "Create task"];
+const STEPS = ["Lead created", "Check data", "Decide tier", "Assign queue", "Create task"];
 
 const days = (n: number) => (n === 0 ? "Same day" : `${n} day${n > 1 ? "s" : ""}`);
 
@@ -124,15 +124,22 @@ export function FlowCard({
         />
       </div>
 
-      <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2.5 text-[11px] ring-1 ring-line">
-        <span className="text-ink-2">Hot Enterprise accounts go to Strategic AEs</span>
-        <input
-          type="checkbox"
-          checked={vars.enterpriseToStrategic}
-          onChange={(e) => set({ enterpriseToStrategic: e.target.checked })}
-          className="size-4 accent-brand"
-        />
-      </label>
+      <div className="space-y-2">
+        {(
+          [
+            ["enterpriseToStrategic", "Hot Enterprise accounts go to Strategic AEs"],
+            ["promoteStrongSignals", "Strong buying signals are at least Warm"],
+          ] as const
+        ).map(([k, label]) => (
+          <label key={k} className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2.5 text-[11px] ring-1 ring-line">
+            <span className="text-ink-2">{label}</span>
+            <input type="checkbox" checked={vars[k]} onChange={(e) => set({ [k]: e.target.checked })} className="size-4 accent-brand" />
+          </label>
+        ))}
+      </div>
+      <p className="text-[10px] leading-snug text-ink-3">
+        Invalid records always go to Data Hygiene and explicit &ldquo;not interested&rdquo; to Do Not Contact. A low score alone never disqualifies.
+      </p>
 
       <div className="mt-auto space-y-1.5 border-t border-line pt-3">
         {owners.map(([owner, n]) => (

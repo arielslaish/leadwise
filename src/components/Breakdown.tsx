@@ -5,7 +5,7 @@
 import { useState } from "react";
 import type { Tier } from "@/config/rubric";
 import { TIERS, tierColor } from "./ui";
-import type { ScoredLead } from "./types";
+import type { Row } from "@/lib/summary";
 
 function count<T extends string>(items: T[]) {
   const m = new Map<T, number>();
@@ -13,10 +13,11 @@ function count<T extends string>(items: T[]) {
   return m;
 }
 
-export function Breakdown({ leads }: { leads: ScoredLead[] }) {
+export function Breakdown({ rows }: { rows: Row[] }) {
+  const leads = rows.map((r) => r.lead);
   const [hover, setHover] = useState<string | null>(null);
-  const total = leads.length || 1;
-  const tiers = count<Tier>(leads.map((l) => l.tier));
+  const total = rows.length || 1;
+  const tiers = count<Tier>(rows.map((r) => r.flow.tier));
   const regions = [...count(leads.map((l) => l.region)).entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const segments = [...count(leads.map((l) => l.segment)).entries()].sort((a, b) => b[1] - a[1]);
   const maxRegion = Math.max(1, ...regions.map((r) => r[1]));

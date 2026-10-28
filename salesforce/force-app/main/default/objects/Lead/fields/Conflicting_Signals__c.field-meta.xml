@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Conflicting_Signals__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Set by Leadwise when notes show a strong buying signal and an explicit "not interested". Routed to Nurture with a review task.</description>
+    <label>Conflicting Signals</label>
+    <type>Checkbox</type>
+</CustomField>

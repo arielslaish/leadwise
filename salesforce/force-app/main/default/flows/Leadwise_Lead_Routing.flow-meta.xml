@@ -2,15 +2,15 @@
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>62.0</apiVersion>
     <assignments>
-        <name>Route_Disqualify</name>
-        <label>Route Disqualify</label>
+        <name>Route_Do_Not_Contact</name>
+        <label>Route Do Not Contact</label>
         <locationX>0</locationX>
         <locationY>0</locationY>
         <assignmentItems>
             <assignToReference>varQueueName</assignToReference>
             <operator>Assign</operator>
             <value>
-                <stringValue>Data_Hygiene_Queue</stringValue>
+                <stringValue>Do_Not_Contact</stringValue>
             </value>
         </assignmentItems>
         <assignmentItems>
@@ -47,7 +47,7 @@
             <assignToReference>varTaskSubject</assignToReference>
             <operator>Assign</operator>
             <value>
-                <stringValue>Call within SLA: hot inbound</stringValue>
+                <stringValue>Call within SLA: hot lead</stringValue>
             </value>
         </assignmentItems>
         <assignmentItems>
@@ -62,6 +62,117 @@
             <operator>Assign</operator>
             <value>
                 <elementReference>fxHotDueDate</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Queue</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Route_Invalid</name>
+        <label>Route Invalid</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>varQueueName</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Data_Hygiene_Queue</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varCreateTask</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskSubject</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Fix record before outreach</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskPriority</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Low</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskDueDate</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxHygieneDueDate</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Queue</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Route_Nurture</name>
+        <label>Route Nurture</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>varQueueName</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Marketing_Nurture</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varCreateTask</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>false</booleanValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Queue</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Route_Review</name>
+        <label>Route Conflicting Signals</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>varQueueName</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Marketing_Nurture</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varCreateTask</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskSubject</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Review conflicting signals</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskPriority</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Normal</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varTaskDueDate</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxWarmDueDate</elementReference>
             </value>
         </assignmentItems>
         <connector>
@@ -91,7 +202,7 @@
             <assignToReference>varTaskSubject</assignToReference>
             <operator>Assign</operator>
             <value>
-                <stringValue>Call within SLA: hot inbound</stringValue>
+                <stringValue>Call within SLA: hot lead</stringValue>
             </value>
         </assignmentItems>
         <assignmentItems>
@@ -106,29 +217,6 @@
             <operator>Assign</operator>
             <value>
                 <elementReference>fxHotDueDate</elementReference>
-            </value>
-        </assignmentItems>
-        <connector>
-            <targetReference>Get_Queue</targetReference>
-        </connector>
-    </assignments>
-    <assignments>
-        <name>Route_Nurture</name>
-        <label>Route Nurture</label>
-        <locationX>0</locationX>
-        <locationY>0</locationY>
-        <assignmentItems>
-            <assignToReference>varQueueName</assignToReference>
-            <operator>Assign</operator>
-            <value>
-                <stringValue>Marketing_Nurture</stringValue>
-            </value>
-        </assignmentItems>
-        <assignmentItems>
-            <assignToReference>varCreateTask</assignToReference>
-            <operator>Assign</operator>
-            <value>
-                <booleanValue>false</booleanValue>
             </value>
         </assignmentItems>
         <connector>
@@ -180,14 +268,6 @@
         </connector>
     </assignments>
     <constants>
-        <description>Score at or above which a lead routes as Hot. Mirrors the slider in the Leadwise UI.</description>
-        <name>HotThreshold</name>
-        <dataType>Number</dataType>
-        <value>
-            <numberValue>75.0</numberValue>
-        </value>
-    </constants>
-    <constants>
         <description>Days until the first-call task on a Hot lead is due. Mirrors the SLA slider in the Leadwise UI.</description>
         <name>HotTaskDueDays</name>
         <dataType>Number</dataType>
@@ -211,14 +291,6 @@
             <numberValue>3.0</numberValue>
         </value>
     </constants>
-    <constants>
-        <description>Score at or above which a lead goes to SDRs instead of Nurture.</description>
-        <name>WarmThreshold</name>
-        <dataType>Number</dataType>
-        <value>
-            <numberValue>55.0</numberValue>
-        </value>
-    </constants>
     <decisions>
         <name>Decide_Route</name>
         <label>Decide Route</label>
@@ -229,7 +301,22 @@
         </defaultConnector>
         <defaultConnectorLabel>Nurture</defaultConnectorLabel>
         <rules>
-            <name>Disqualify</name>
+            <name>Invalid</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Data_Quality__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Invalid</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Route_Invalid</targetReference>
+            </connector>
+            <label>Invalid data</label>
+        </rules>
+        <rules>
+            <name>Not_Interested</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
                 <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
@@ -239,18 +326,18 @@
                 </rightValue>
             </conditions>
             <connector>
-                <targetReference>Route_Disqualify</targetReference>
+                <targetReference>Route_Do_Not_Contact</targetReference>
             </connector>
-            <label>Disqualify</label>
+            <label>Not interested</label>
         </rules>
         <rules>
             <name>Strategic</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
-                <leftValueReference>$Record.Lead_Score__c</leftValueReference>
-                <operator>GreaterThanOrEqualTo</operator>
+                <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
+                <operator>EqualTo</operator>
                 <rightValue>
-                    <elementReference>HotThreshold</elementReference>
+                    <stringValue>Hot</stringValue>
                 </rightValue>
             </conditions>
             <conditions>
@@ -276,10 +363,10 @@
             <name>Hot</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
-                <leftValueReference>$Record.Lead_Score__c</leftValueReference>
-                <operator>GreaterThanOrEqualTo</operator>
+                <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
+                <operator>EqualTo</operator>
                 <rightValue>
-                    <elementReference>HotThreshold</elementReference>
+                    <stringValue>Hot</stringValue>
                 </rightValue>
             </conditions>
             <connector>
@@ -291,16 +378,31 @@
             <name>Warm</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
-                <leftValueReference>$Record.Lead_Score__c</leftValueReference>
-                <operator>GreaterThanOrEqualTo</operator>
+                <leftValueReference>$Record.Lead_Tier__c</leftValueReference>
+                <operator>EqualTo</operator>
                 <rightValue>
-                    <elementReference>WarmThreshold</elementReference>
+                    <stringValue>Warm</stringValue>
                 </rightValue>
             </conditions>
             <connector>
                 <targetReference>Route_Warm</targetReference>
             </connector>
             <label>Warm</label>
+        </rules>
+        <rules>
+            <name>Conflicting</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Conflicting_Signals__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Route_Review</targetReference>
+            </connector>
+            <label>Conflicting signals</label>
         </rules>
     </decisions>
     <decisions>
@@ -325,13 +427,18 @@
             <label>Create follow-up</label>
         </rules>
     </decisions>
-    <description>Leadwise lead routing. After a Lead is created with a Leadwise score: Disqualify goes to Data Hygiene, Hot goes to the regional AE queue (or Strategic Accounts for Enterprise, when enabled) with a High-priority call task due within the SLA, Warm goes to the SDR queue with an outreach task, everything else goes to Marketing Nurture.</description>
+    <description>Leadwise lead routing. Leadwise sets Data_Quality__c and Lead_Tier__c (Hot/Warm/Nurture from score thresholds and buying signals; Disqualify only for invalid data or explicit no interest). This Flow routes on them: Invalid to Data Hygiene with a fix task, Disqualify to Do Not Contact, Hot to the regional AE queue (or Strategic for Enterprise when enabled) with a call task, Warm to SDRs with an outreach task, conflicting signals to Nurture with a review task, everything else to Nurture.</description>
     <environments>Default</environments>
     <formulas>
-        <description>Next business touch for Hot leads: today plus the SLA constant.</description>
+        <description>First-call due date for Hot leads.</description>
         <name>fxHotDueDate</name>
         <dataType>Date</dataType>
         <expression>TODAY() + {!HotTaskDueDays}</expression>
+    </formulas>
+    <formulas>
+        <name>fxHygieneDueDate</name>
+        <dataType>Date</dataType>
+        <expression>TODAY() + 2</expression>
     </formulas>
     <formulas>
         <description>Queue developer name for Hot leads, by region.</description>

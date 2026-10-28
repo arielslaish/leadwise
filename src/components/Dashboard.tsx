@@ -3,6 +3,8 @@
 // App shell: intro → home → thinking → results. One page, no routing.
 
 import Papa from "papaparse";
+import { MAX_ROWS } from "@/config/rubric";
+import { PillButton } from "./ui";
 import { useCallback, useEffect, useState } from "react";
 import { Home } from "./Home";
 import { Intro } from "./Intro";
@@ -26,6 +28,7 @@ export function Dashboard() {
   const [screen, setScreen] = useState<Screen>("intro");
   const [fileName, setFileName] = useState("");
   const [rowCount, setRowCount] = useState(0);
+  const [pending, setPending] = useState<{ csv: string; name: string; count: number } | null>(null);
   const [result, setResult] = useState<ScoreResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,11 +48,19 @@ export function Dashboard() {
     window.scrollTo(0, 0);
   }, [screen]);
 
-  async function score(csv: string, name: string) {
+  // Files over the limit get an explanation first, before anything is processed.
+  function score(csv: string, name: string) {
+    const count = Papa.parse(csv.trim(), { header: true, skipEmptyLines: "greedy" }).data.length;
+    if (count > MAX_ROWS) return setPending({ csv, name, count });
+    run(csv, name, count);
+  }
+
+  async function run(csv: string, name: string, count: number) {
+    setPending(null);
     setError(null);
     setResult(null);
     setFileName(name);
-    setRowCount(Papa.parse(csv.trim(), { header: true, skipEmptyLines: "greedy" }).data.length);
+    setRowCount(count);
     setScreen("thinking");
 
     const key = ownerKey();
@@ -98,6 +109,25 @@ export function Dashboard() {
   return (
     <>
       <Home onSample={onSample} onFile={onFile} error={error} />
+      {pending && (
+        <div role="dialog" aria-modal="true" aria-labelledby="limit-title" className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-4 backdrop-blur-sm sm:items-center">
+          <div className="card w-full max-w-md bg-white/95 p-6">
+            <h2 id="limit-title" className="font-display text-xl tracking-tight">
+              {pending.count} rows found
+            </h2>
+            <p className="mt-2 text-sm text-ink-2">
+              The demo processes the first {MAX_ROWS} rows of a file. The other {pending.count - MAX_ROWS} will be skipped, and the import
+              summary lists exactly which rows. To score everything, split the file into parts of {MAX_ROWS}.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <PillButton onClick={() => setPending(null)}>Cancel</PillButton>
+              <PillButton dark onClick={() => run(pending.csv, pending.name, pending.count)}>
+                Process first {MAX_ROWS}
+              </PillButton>
+            </div>
+          </div>
+        </div>
+      )}
       {screen === "thinking" && <Thinking fileName={fileName} rowCount={rowCount} result={result} onDone={onThinkingDone} />}
     </>
   );

@@ -112,7 +112,7 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
             <p className="mt-1.5 text-sm text-ink-2">
               Drop a CSV or <span className="font-medium text-brand underline underline-offset-4">browse</span>
             </p>
-            <p className="mt-2 text-[11px] text-ink-3">Any CRM export · first {MAX_ROWS} rows · never stored</p>
+            <p className="mt-2 text-[11px] text-ink-3">Any CRM export · up to {MAX_ROWS} rows per upload · never stored</p>
             <input
               ref={input}
               type="file"
@@ -145,10 +145,13 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
             ))}
           </ol>
           <p className="mt-4 max-w-3xl text-xs leading-relaxed text-ink-3">
-            Each lead is scored out of 100: company size {rubric.companySize.weight}, title seniority {rubric.seniority.weight},
-            industry fit {rubric.industry.weight}, intent signals {rubric.intent.weight}, region {rubric.region.weight}, data
-            completeness {rubric.completeness.weight}. Hot is 75+, Warm 55+, Nurture 30+. Routing mirrors a Salesforce
-            record-triggered Flow, and you can tune it live on the results page.{" "}
+            Data quality and lead quality are judged separately. Every record is first checked (email, name, phone, company,
+            location, duplicates); invalid ones go to Data Hygiene. Valid leads are scored out of 100: company size{" "}
+            {rubric.companySize.weight}, title seniority {rubric.seniority.weight}, industry fit {rubric.industry.weight}, buying
+            intent {rubric.intent.weight}, region {rubric.region.weight}, data completeness {rubric.completeness.weight}. Hot is 75+,
+            Warm 55+, and strong buying signals are at least Warm. A low score never disqualifies a lead; only invalid data or an
+            explicit &ldquo;not interested&rdquo; does. Routing mirrors a Salesforce record-triggered Flow, and you can tune it on the
+            results page.{" "}
             <a href={`${GITHUB_URL}/tree/main/salesforce`} target="_blank" rel="noreferrer" className="text-brand underline underline-offset-4">
               See the Flow on GitHub
             </a>

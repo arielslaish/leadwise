@@ -7,28 +7,29 @@ The routing logic the Leadwise dashboard simulates, as deployable Salesforce met
 | `flows/Leadwise_Lead_Routing.flow-meta.xml` | Record-triggered Flow on Lead (after save, on create) |
 | `objects/Lead/fields/Lead_Score__c` | Number(3,0), the 0-100 score |
 | `objects/Lead/fields/Lead_Tier__c` | Picklist: Hot, Warm, Nurture, Disqualify |
+| `objects/Lead/fields/Data_Quality__c` | Picklist: Valid, Needs review, Invalid (separate from tier) |
+| `objects/Lead/fields/Conflicting_Signals__c` | Checkbox: strong buying signal plus explicit "not interested" |
 | `objects/Lead/fields/Region__c` | Text, the normalized region |
 | `objects/Lead/fields/Segment__c` | Text: SMB, Mid-Market, Enterprise |
-| `queues/*` | 9 Lead queues the Flow routes into |
+| `queues/*` | 10 Lead queues the Flow routes into |
 
-## Flow logic
+## Who decides what
+
+Leadwise decides **data quality** and **tier** (it holds the score, thresholds and buying-signal logic, all tunable in the dashboard). The Flow routes on those fields, in the same order the dashboard does:
 
 ```mermaid
 flowchart TD
     S([Lead created]) --> D{Decide route}
-    D -- "Tier = Disqualify" --> RD[Queue: Data Hygiene]
-    D -- "Score ≥ HotThreshold, Enterprise,<br/>RouteEnterpriseToStrategic" --> RS[Queue: Strategic Accounts]
-    D -- "Score ≥ HotThreshold" --> RH["Queue: regional AE<br/>(AMER / ISR / EMEA / APAC)"]
-    D -- "Score ≥ WarmThreshold" --> RW[Queue: SDR]
-    D -- default --> RN[Queue: Marketing Nurture]
-    RD & RS & RH & RW & RN --> G[Get queue by DeveloperName] --> O[Assign Lead owner]
-    O --> T{Needs task?}
-    T -- "Hot" --> TH["Task: Call within SLA<br/>High, due today + HotTaskDueDays"]
-    T -- "Warm" --> TW["Task: Outreach sequence<br/>Normal, due today + WarmTaskDueDays"]
-    T -- "No" --> E([End])
+    D -- "Data_Quality = Invalid" --> RI["Data Hygiene<br/>task: fix record"]
+    D -- "Tier = Disqualify<br/>(explicitly not interested)" --> RD[Do Not Contact]
+    D -- "Tier = Hot, Enterprise,<br/>RouteEnterpriseToStrategic" --> RS["Strategic Accounts<br/>task: call within SLA"]
+    D -- "Tier = Hot" --> RH["Regional AE queue<br/>task: call within SLA"]
+    D -- "Tier = Warm" --> RW["SDR Queue<br/>task: outreach"]
+    D -- "Conflicting signals" --> RR["Marketing Nurture<br/>task: review"]
+    D -- default --> RN[Marketing Nurture]
 ```
 
-`HotThreshold` (75), `HotTaskDueDays` (1), `WarmThreshold` (55), `WarmTaskDueDays` (3) and `RouteEnterpriseToStrategic` (false) are Flow constants: the same five variables visitors adjust on the dashboard.
+A low score alone never disqualifies a lead. `HotTaskDueDays` (1), `WarmTaskDueDays` (3) and `RouteEnterpriseToStrategic` (false) are Flow constants, matching the dashboard controls.
 
 ## Deploy to a dev org
 

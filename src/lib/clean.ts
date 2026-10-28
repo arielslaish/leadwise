@@ -1,19 +1,33 @@
 // Step 1 of the pipeline: deterministic cleaning, no AI.
-// Normalizes fields, maps city/country variants, buckets company size,
-// flags junk, and merges duplicates (same email) into one record.
+//   parse    -> map any export's columns, keep each record's original row number
+//   enrich   -> segment from company size, region from country/city/state/email
+//   validate -> every data-quality issue per lead (not just the first)
+//   dedupe   -> exact and fuzzy matching with an audit trail; uncertain pairs
+//               are flagged for review instead of merged
 
 import Papa from "papaparse";
+import { MAX_ROWS } from "@/config/rubric";
+import { locationConflict, resolvePlace, UNAVAILABLE } from "./geo";
+
+export type Severity = "error" | "warning";
+export type Issue = { code: string; label: string; severity: Severity };
+export type DataQuality = "Valid" | "Needs review" | "Invalid";
+export type Segment = "SMB" | "Mid-Market" | "Enterprise" | "Unavailable";
+
+export type MergedRecord = { rowNumber: number; name: string; email: string; matchedOn: string };
 
 export type CleanLead = {
   id: number;
+  rowNumbers: number[]; // every source row folded into this lead
   firstName: string;
   lastName: string;
   email: string;
+  phone: string;
   title: string;
   company: string;
   companySize: number | null;
   sizeBand: string;
-  segment: "SMB" | "Mid-Market" | "Enterprise" | "Unknown";
+  segment: Segment;
   industry: string;
   city: string;
   country: string;
@@ -21,137 +35,72 @@ export type CleanLead = {
   sources: string[];
   notes: string;
   freeEmail: boolean;
-  junkReason: string | null;
+  quality: DataQuality;
+  issues: Issue[];
+  merged: MergedRecord[];
+  possibleDuplicateRows: number[]; // similar records we deliberately did NOT merge
 };
 
-export type CleanResult = {
-  rowsIn: number;
-  duplicatesRemoved: number;
-  junkFlagged: number;
-  leads: CleanLead[];
+export type ImportSummary = {
+  rowsInFile: number; // non-empty data rows uploaded
+  emptyRowsSkipped: number;
+  processed: number; // rows that entered cleaning (max MAX_ROWS)
+  overLimit: { count: number; firstRow: number | null; lastRow: number | null };
+  duplicatesMerged: number; // rows folded into another lead
+  exactDuplicates: number;
+  fuzzyDuplicates: number;
+  possibleDuplicatePairs: number;
+  leadsOut: number;
 };
+
+export type CleanResult = { summary: ImportSummary; leads: CleanLead[] };
+
+type RawRow = {
+  rowNumber: number;
+  firstName?: string; lastName?: string; email?: string; phone?: string; title?: string;
+  company?: string; companySize?: string; industry?: string; city?: string; state?: string;
+  country?: string; source?: string; notes?: string;
+};
+type Field = Exclude<keyof RawRow, "rowNumber">;
 
 // Accept common header spellings so real-world exports work too.
-const HEADER_ALIASES: Record<string, keyof RawRow | "fullName"> = {
+const HEADER_ALIASES: Record<string, Field | "fullName"> = {
   first_name: "firstName", firstname: "firstName", first: "firstName", given_name: "firstName",
   last_name: "lastName", lastname: "lastName", last: "lastName", surname: "lastName", family_name: "lastName",
   name: "fullName", full_name: "fullName", contact: "fullName", contact_name: "fullName", lead_name: "fullName",
-  email: "email", email_address: "email", e_mail: "email", work_email: "email", business_email: "email",
+  email: "email", email_address: "email", e_mail: "email", work_email: "email", business_email: "email", mail: "email",
+  phone: "phone", phone_number: "phone", mobile: "phone", mobile_phone: "phone", tel: "phone", telephone: "phone",
+  work_phone: "phone", cell: "phone",
   title: "title", job_title: "title", position: "title", role: "title", jobtitle: "title",
   company: "company", company_name: "company", account: "company", account_name: "company",
   organization: "company", organisation: "company", employer: "company",
   company_size: "companySize", employees: "companySize", size: "companySize", headcount: "companySize",
   employee_count: "companySize", number_of_employees: "companySize", no_of_employees: "companySize",
+  company_employees: "companySize", employees_range: "companySize",
   industry: "industry", vertical: "industry", sector: "industry",
-  city: "city", location: "city",
-  country: "country", country_region: "country", region: "country", hq_country: "country",
+  city: "city", location: "city", address: "city", hq: "city", hq_location: "city",
+  state: "state", province: "state", state_province: "state",
+  country: "country", country_region: "country", region: "country", hq_country: "country", country_code: "country",
   source: "source", lead_source: "source", channel: "source",
   notes: "notes", note: "notes", comments: "notes", comment: "notes", description: "notes", message: "notes",
 };
 
-type RawRow = {
-  firstName?: string; lastName?: string; email?: string; title?: string;
-  company?: string; companySize?: string; industry?: string; city?: string;
-  country?: string; source?: string; notes?: string;
-};
-
-const CITY_MAP: Record<string, string> = {
-  tlv: "Tel Aviv", "tel aviv": "Tel Aviv", "tel-aviv": "Tel Aviv", "tel aviv-yafo": "Tel Aviv",
-  nyc: "New York", ny: "New York", "new york city": "New York",
-  sf: "San Francisco", "ramat gan": "Ramat Gan",
-};
-
-const COUNTRY_MAP: Record<string, string> = {
-  il: "Israel", isr: "Israel",
-  us: "United States", usa: "United States", "united states": "United States",
-  uk: "United Kingdom", "united kingdom": "United Kingdom", gb: "United Kingdom",
-  uae: "UAE", "united arab emirates": "UAE",
-};
-
-const REGION_BY_COUNTRY: Record<string, string> = {
-  "United States": "North America", Canada: "North America",
-  Israel: "Israel",
-  "United Kingdom": "UK", Ireland: "Rest of Europe",
-  Germany: "DACH", Austria: "DACH", Switzerland: "DACH",
-  France: "Rest of Europe", Spain: "Rest of Europe", Italy: "Rest of Europe",
-  Norway: "Rest of Europe", Netherlands: "Rest of Europe", "Czech Republic": "Rest of Europe",
-  Australia: "ANZ", "New Zealand": "ANZ",
-};
-
-const FREE_DOMAINS = new Set(["gmail.com", "hotmail.com", "yahoo.com", "outlook.com", "icloud.com"]);
-const JUNK_WORDS = /^(test|asdf|n\/a|na|none|xxx|qwerty)$/i;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
-
-const titleCase = (s: string) =>
-  s.toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (m) => m.toUpperCase());
-
-function normalizeCountry(raw: string) {
-  const key = raw.trim().toLowerCase();
-  return COUNTRY_MAP[key] ?? (key ? titleCase(key) : "");
-}
-
-function normalizeCity(raw: string) {
-  const key = raw.trim().toLowerCase();
-  return CITY_MAP[key] ?? (key ? titleCase(key) : "");
-}
-
-function sizeToBand(n: number | null): string {
-  if (n == null) return "Unknown";
-  if (n <= 10) return "1-10";
-  if (n <= 50) return "11-50";
-  if (n <= 200) return "51-200";
-  if (n <= 1000) return "201-1000";
-  if (n <= 5000) return "1001-5000";
-  return "5000+";
-}
-
-function bandToSegment(n: number | null): CleanLead["segment"] {
-  if (n == null) return "Unknown";
-  if (n <= 200) return "SMB";
-  if (n <= 1000) return "Mid-Market";
-  return "Enterprise";
-}
-
-function parseSize(raw: string): number | null {
-  const s = raw.toLowerCase().replace(/[,~+\s]/g, "");
-  if (!s) return null;
-  const k = s.match(/^(\d+(?:\.\d+)?)k$/);
-  if (k) return Math.round(parseFloat(k[1]) * 1000);
-  const range = s.match(/^(\d+)-(\d+)$/);
-  if (range) return Math.round((+range[1] + +range[2]) / 2);
-  const n = parseInt(s, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-function junkReason(r: RawRow, email: string): string | null {
-  if (!email || !EMAIL_RE.test(email)) return "Invalid email";
-  if ([r.firstName, r.lastName, r.company].some((v) => v && JUNK_WORDS.test(v.trim()))) return "Test / placeholder data";
-  if (/^(test|noreply|no-reply)@/.test(email) || email.endsWith("@test.com")) return "Test or no-reply address";
-  if (!r.company?.trim() || JUNK_WORDS.test(r.company.trim())) return "Missing company";
-  return null;
-}
-
-// Counts filled fields so the most complete duplicate wins the merge.
-const completeness = (l: CleanLead) =>
-  [l.firstName, l.lastName, l.title, l.company, l.industry, l.city, l.country, l.notes]
-    .filter(Boolean).length + (l.companySize != null ? 1 : 0);
-
 // Header normalizer: "Job Title", "job-title", "JobTitle " and a BOM all map the same way.
 const normalizeHeader = (h: string) =>
-  h.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  h.replace(/^﻿/, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
-export function parseCsv(text: string): { rows: RawRow[]; columns: (keyof RawRow)[] } {
-  const parsed = Papa.parse<Record<string, string>>(text.trim(), {
-    header: true,
-    skipEmptyLines: "greedy",
-    transformHeader: normalizeHeader,
-  });
-  const columns = new Set<keyof RawRow>();
-  const rows = parsed.data.map((row) => {
-    const out: RawRow = {};
+export function parseCsv(text: string): { rows: RawRow[]; columns: Field[]; emptyRows: number } {
+  const parsed = Papa.parse<Record<string, string>>(text.trim(), { header: true, transformHeader: normalizeHeader });
+  const columns = new Set<Field>();
+  const rows: RawRow[] = [];
+  let emptyRows = 0;
+  parsed.data.forEach((row, i) => {
+    const out: RawRow = { rowNumber: i + 2 }; // line 1 is the header
+    let any = false;
     for (const [key, value] of Object.entries(row)) {
       const field = HEADER_ALIASES[key];
       if (!field || typeof value !== "string" || !value.trim()) continue;
+      any = true;
       if (field === "fullName") {
         const [first, ...rest] = value.trim().split(/\s+/);
         out.firstName ??= first;
@@ -162,58 +111,301 @@ export function parseCsv(text: string): { rows: RawRow[]; columns: (keyof RawRow
         columns.add(field);
       }
     }
-    return out;
+    if (any) rows.push(out);
+    else emptyRows++;
   });
-  return { rows, columns: [...columns] };
+  return { rows, columns: [...columns], emptyRows };
 }
 
-export function cleanRows(rows: RawRow[]): CleanResult {
-  const byEmail = new Map<string, CleanLead>();
-  const noEmail: CleanLead[] = [];
-  let duplicatesRemoved = 0;
+// ---------- normalization ----------
 
-  rows.forEach((r, i) => {
-    const email = (r.email ?? "").toLowerCase();
-    const size = parseSize(r.companySize ?? "");
-    const country = normalizeCountry(r.country ?? "");
-    const domain = email.split("@")[1] ?? "";
-    const lead: CleanLead = {
-      id: i + 1,
-      firstName: titleCase(r.firstName ?? ""),
-      lastName: titleCase(r.lastName ?? ""),
-      email,
-      title: r.title ?? "",
-      company: (r.company ?? "").replace(/\s+(inc\.?|ltd\.?|gmbh|llc)$/i, "").trim(),
-      companySize: size,
-      sizeBand: sizeToBand(size),
-      segment: bandToSegment(size),
-      industry: r.industry ?? "",
-      city: normalizeCity(r.city ?? ""),
-      country,
-      region: REGION_BY_COUNTRY[country] ?? (country ? "Other" : "Unknown"),
-      sources: r.source ? [r.source] : [],
-      notes: r.notes ?? "",
-      freeEmail: FREE_DOMAINS.has(domain),
-      junkReason: junkReason(r, email),
-    };
+const FREE_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "hotmail.com", "yahoo.com", "outlook.com", "icloud.com", "live.com", "aol.com",
+  "proton.me", "protonmail.com", "gmx.com", "gmx.de", "mail.com", "walla.co.il", "yandex.com",
+]);
+const ROLE_LOCALS = /^(info|sales|admin|contact|hello|support|office|team|marketing|hr|jobs|billing)$/;
+// Only values that are never a real name or company ("Bar", "Abc" and "Sample" can be).
+const JUNK_WORDS = /^(test|testing|asdf+|qwerty|n\/?a|none|null|xxx+|dummy|lorem|ipsum|placeholder|-+|\.+)$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 
-    if (!email) return noEmail.push(lead);
-    const existing = byEmail.get(email);
-    if (!existing) return byEmail.set(email, lead);
+const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (m) => m.toUpperCase());
+const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-    duplicatesRemoved++;
-    const [keep, drop] = completeness(lead) > completeness(existing) ? [lead, existing] : [existing, lead];
-    keep.id = Math.min(keep.id, drop.id);
-    keep.sources = [...new Set([...existing.sources, ...lead.sources])];
-    keep.notes = [...new Set([existing.notes, lead.notes].filter(Boolean))].join(" | ");
-    byEmail.set(email, keep);
-  });
+export const normName = (s: string) => fold(s).replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+export const normCompany = (s: string) =>
+  fold(s)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(inc|incorporated|ltd|limited|llc|gmbh|corp|corporation|co|company|plc|sa|ag|bv|srl|pty|the)\b/g, " ")
+    .replace(/\s+/g, "");
+export function normEmail(s: string) {
+  const e = s.trim().toLowerCase();
+  const [local, domain] = e.split("@");
+  if (!domain) return e;
+  let l = local.split("+")[0];
+  if (domain === "gmail.com" || domain === "googlemail.com") l = l.replace(/\./g, "");
+  return `${l}@${domain === "googlemail.com" ? "gmail.com" : domain}`;
+}
+export const normPhone = (s: string) => {
+  const d = s.replace(/\D/g, "");
+  return d.length >= 8 ? d.slice(-9) : "";
+};
 
-  const leads = [...byEmail.values(), ...noEmail].sort((a, b) => a.id - b.id);
+function parseSize(raw: string): number | null {
+  const s = raw.toLowerCase().replace(/,/g, "").trim();
+  if (!s) return null;
+  if (/enterprise|large/.test(s)) return 5000;
+  if (/mid[\s-]?market|medium|mid/.test(s)) return 500;
+  if (/smb|small|startup/.test(s)) return 30;
+  if (/self[\s-]?employed|solo|freelanc/.test(s)) return 1;
+  const nums = [...s.matchAll(/(\d+(?:\.\d+)?)\s*(k|m)?/g)].map((m) => parseFloat(m[1]) * (m[2] === "k" ? 1000 : m[2] === "m" ? 1_000_000 : 1));
+  if (!nums.length) return null;
+  return Math.round(nums.length > 1 ? (nums[0] + nums[1]) / 2 : nums[0]);
+}
+
+function sizeToBand(n: number | null): string {
+  if (n == null) return UNAVAILABLE;
+  if (n <= 10) return "1-10";
+  if (n <= 50) return "11-50";
+  if (n <= 200) return "51-200";
+  if (n <= 1000) return "201-1000";
+  if (n <= 5000) return "1001-5000";
+  return "5000+";
+}
+
+function toSegment(n: number | null): Segment {
+  if (n == null) return "Unavailable";
+  if (n <= 200) return "SMB";
+  if (n <= 1000) return "Mid-Market";
+  return "Enterprise";
+}
+
+// ---------- data quality ----------
+
+const suspiciousName = (s: string) => /\d/.test(s) || /^(.)\1{2,}$/i.test(s) || (s.length === 1 && !/^[a-z]\.?$/i.test(s));
+
+export function assessQuality(r: RawRow, lead: Omit<CleanLead, "quality" | "issues">): Issue[] {
+  const issues: Issue[] = [];
+  const add = (code: string, label: string, severity: Severity) => issues.push({ code, label, severity });
+  const phoneDigits = (r.phone ?? "").replace(/\D/g, "");
+  const validPhone = phoneDigits.length >= 7 && phoneDigits.length <= 15 && !/^(\d)\1+$/.test(phoneDigits);
+  const email = lead.email;
+
+  if (!email) add("email_missing", "Missing email", validPhone ? "warning" : "error");
+  else if (!EMAIL_RE.test(email)) add("email_malformed", `Malformed email "${email}"`, "error");
+  else {
+    const [local] = email.split("@");
+    if (/^(test|noreply|no-reply|donotreply)$/.test(local) || /@(test|example)\.(com|org)$/.test(email))
+      add("email_test", "Test or no-reply address", "error");
+    else if (ROLE_LOCALS.test(local)) add("email_role", "Role-based inbox, not a person", "warning");
+    if (lead.freeEmail) add("email_free", "Personal email domain", "warning");
+  }
+
+  if (r.phone && !validPhone) add("phone_invalid", `Invalid phone "${r.phone}"`, "warning");
+
+  const first = r.firstName?.trim() ?? "";
+  const last = r.lastName?.trim() ?? "";
+  if ([first, last, r.company?.trim() ?? ""].some((v) => v && JUNK_WORDS.test(v))) add("placeholder", "Test or placeholder values", "error");
+  if (!first && !last) add("name_missing", "Missing name", "error");
+  else if (!first || !last) add("name_partial", `Missing ${first ? "last" : "first"} name`, "warning");
+  if ((first && suspiciousName(first)) || (last && suspiciousName(last))) add("name_suspicious", "Suspicious name", "warning");
+
+  if (!lead.company) add("company_missing", "Missing company", lead.freeEmail || !email ? "error" : "warning");
+  if (!lead.title) add("title_missing", "Missing job title", "warning");
+  if (r.companySize && lead.companySize == null) add("size_unreadable", `Company size unreadable "${r.companySize}"`, "warning");
+  if (lead.region === UNAVAILABLE) add("location_missing", "Location unavailable", "warning");
+  if (r.city && r.country && locationConflict(r.city, r.country)) add("location_conflict", `City "${r.city}" doesn't match country "${r.country}"`, "warning");
+
+  return issues;
+}
+
+const qualityOf = (issues: Issue[]): DataQuality =>
+  issues.some((i) => i.severity === "error") ? "Invalid" : issues.length ? "Needs review" : "Valid";
+
+// ---------- duplicates ----------
+
+// Jaro-Winkler similarity, 0..1. Good for short strings like names.
+export function similarity(a: string, b: string): number {
+  if (a === b) return a ? 1 : 0;
+  if (!a || !b) return 0;
+  const range = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1);
+  const am = new Array(a.length).fill(false);
+  const bm = new Array(b.length).fill(false);
+  let matches = 0;
+  for (let i = 0; i < a.length; i++) {
+    for (let j = Math.max(0, i - range); j < Math.min(b.length, i + range + 1); j++) {
+      if (bm[j] || a[i] !== b[j]) continue;
+      am[i] = bm[j] = true;
+      matches++;
+      break;
+    }
+  }
+  if (!matches) return 0;
+  let t = 0;
+  for (let i = 0, k = 0; i < a.length; i++) {
+    if (!am[i]) continue;
+    while (!bm[k]) k++;
+    if (a[i] !== b[k]) t++;
+    k++;
+  }
+  const jaro = (matches / a.length + matches / b.length + (matches - t / 2) / matches) / 3;
+  let prefix = 0;
+  while (prefix < 4 && a[prefix] === b[prefix]) prefix++;
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+type Match = { kind: "merge" | "possible"; exact: boolean; reason: string } | null;
+
+/** Decide whether two leads are the same person. Conservative: when unsure, flag instead of merging. */
+export function matchLeads(a: CleanLead, b: CleanLead): Match {
+  const nameA = normName(`${a.firstName} ${a.lastName}`);
+  const nameB = normName(`${b.firstName} ${b.lastName}`);
+  const hasNames = nameA.includes(" ") && nameB.includes(" ");
+  const nameSim = similarity(nameA, nameB);
+  const sameCompany = Boolean(normCompany(a.company)) && normCompany(a.company) === normCompany(b.company);
+  const emailsValid = EMAIL_RE.test(a.email) && EMAIL_RE.test(b.email);
+  const sameEmail = emailsValid && normEmail(a.email) === normEmail(b.email);
+  const differentEmails = emailsValid && !sameEmail;
+  const pa = normPhone(a.phone);
+  const samePhone = Boolean(pa) && pa === normPhone(b.phone);
+
+  if (sameEmail) {
+    // A shared inbox used by two different people is not one lead.
+    if (hasNames && nameSim < 0.75) return { kind: "possible", exact: false, reason: "Same email, different names" };
+    return { kind: "merge", exact: true, reason: "Same email" };
+  }
+  if (samePhone && (sameCompany || (hasNames && nameSim >= 0.9))) return { kind: "merge", exact: true, reason: "Same phone" };
+  if (hasNames && sameCompany && nameA === nameB) {
+    return differentEmails
+      ? { kind: "possible", exact: false, reason: "Same name and company, different emails" }
+      : { kind: "merge", exact: true, reason: "Same name and company" };
+  }
+  if (hasNames && sameCompany && nameSim >= 0.9) {
+    return differentEmails
+      ? { kind: "possible", exact: false, reason: "Similar name, same company, different emails" }
+      : { kind: "merge", exact: false, reason: "Similar name, same company" };
+  }
+  return null;
+}
+
+const filled = (l: CleanLead) =>
+  [l.firstName, l.lastName, l.email, l.phone, l.title, l.company, l.industry, l.notes].filter(Boolean).length +
+  (l.companySize != null ? 1 : 0) + (l.region !== UNAVAILABLE ? 1 : 0);
+
+/** Fold `other` into `keep`: fill blanks, keep every distinct value we'd otherwise lose. */
+function mergeInto(keep: CleanLead, other: CleanLead, matchedOn: string) {
+  for (const f of ["firstName", "lastName", "email", "phone", "title", "company", "industry"] as const) {
+    if (!keep[f] && other[f]) keep[f] = other[f];
+  }
+  if (keep.companySize == null && other.companySize != null) {
+    keep.companySize = other.companySize;
+    keep.sizeBand = other.sizeBand;
+    keep.segment = other.segment;
+  }
+  if (keep.region === UNAVAILABLE && other.region !== UNAVAILABLE) {
+    keep.city = other.city;
+    keep.country = other.country;
+    keep.region = other.region;
+  }
+  const altEmail = other.email && normEmail(other.email) !== normEmail(keep.email) ? `Alt email: ${other.email}` : "";
+  keep.sources = [...new Set([...keep.sources, ...other.sources])];
+  keep.notes = [...new Set([keep.notes, other.notes, altEmail].filter(Boolean))].join(" | ");
+  keep.rowNumbers = [...keep.rowNumbers, ...other.rowNumbers].sort((x, y) => x - y);
+  keep.merged.push(
+    { rowNumber: other.rowNumbers[0], name: `${other.firstName} ${other.lastName}`.trim(), email: other.email, matchedOn },
+    ...other.merged,
+  );
+  keep.possibleDuplicateRows = [...new Set([...keep.possibleDuplicateRows, ...other.possibleDuplicateRows])];
+}
+
+// ---------- pipeline ----------
+
+function buildLead(r: RawRow, id: number): CleanLead {
+  const email = (r.email ?? "").trim().toLowerCase();
+  const domain = email.split("@")[1] ?? "";
+  const size = parseSize(r.companySize ?? "");
+  const place = resolvePlace({ country: r.country, city: r.city, state: r.state, email });
+  const base = {
+    id,
+    rowNumbers: [r.rowNumber],
+    firstName: titleCase(r.firstName ?? ""),
+    lastName: titleCase(r.lastName ?? ""),
+    email,
+    phone: r.phone ?? "",
+    title: r.title ?? "",
+    company: (r.company ?? "").replace(/[\s,]+(inc\.?|ltd\.?|gmbh|llc)$/i, "").trim(),
+    companySize: size,
+    sizeBand: sizeToBand(size),
+    segment: toSegment(size),
+    industry: r.industry ?? "",
+    city: place.city,
+    country: place.country,
+    region: place.region,
+    sources: r.source ? [r.source] : [],
+    notes: r.notes ?? "",
+    freeEmail: FREE_DOMAINS.has(domain),
+    merged: [],
+    possibleDuplicateRows: [],
+  };
+  const issues = assessQuality(r, base);
+  return { ...base, issues, quality: qualityOf(issues) };
+}
+
+export function cleanRows(allRows: RawRow[], emptyRows = 0): CleanResult {
+  const rows = allRows.slice(0, MAX_ROWS);
+  const over = allRows.slice(MAX_ROWS);
+  const leads = rows.map((r, i) => buildLead(r, i + 1));
+
+  let exact = 0;
+  let fuzzy = 0;
+  let possible = 0;
+  const alive = new Set(leads.map((l) => l.id));
+  for (let i = 0; i < leads.length; i++) {
+    for (let j = i + 1; j < leads.length; j++) {
+      const a = leads[i];
+      const b = leads[j];
+      if (!alive.has(a.id) || !alive.has(b.id)) continue;
+      const m = matchLeads(a, b);
+      if (!m) continue;
+      if (m.kind === "possible") {
+        possible++;
+        a.possibleDuplicateRows.push(b.rowNumbers[0]);
+        b.possibleDuplicateRows.push(a.rowNumbers[0]);
+        continue;
+      }
+      if (m.exact) exact++;
+      else fuzzy++;
+      const [keep, drop] = filled(b) > filled(a) ? [b, a] : [a, b];
+      mergeInto(keep, drop, m.reason);
+      alive.delete(drop.id);
+    }
+  }
+
+  // Re-check quality on merged leads: a merge can fill a missing email or company.
+  const out = leads
+    .filter((l) => alive.has(l.id))
+    .map((l) => {
+      if (!l.merged.length) return l;
+      const issues = assessQuality(
+        { rowNumber: l.rowNumbers[0], firstName: l.firstName, lastName: l.lastName, email: l.email, phone: l.phone, title: l.title, company: l.company, companySize: l.companySize != null ? String(l.companySize) : "", city: l.city === UNAVAILABLE ? "" : l.city, country: l.country === UNAVAILABLE ? "" : l.country },
+        l,
+      );
+      return { ...l, issues, quality: qualityOf(issues) };
+    })
+    .sort((a, b) => a.rowNumbers[0] - b.rowNumbers[0])
+    .map((l, i) => ({ ...l, id: i + 1 }));
+
   return {
-    rowsIn: rows.length,
-    duplicatesRemoved,
-    junkFlagged: leads.filter((l) => l.junkReason).length,
-    leads,
+    summary: {
+      rowsInFile: allRows.length,
+      emptyRowsSkipped: emptyRows,
+      processed: rows.length,
+      overLimit: { count: over.length, firstRow: over[0]?.rowNumber ?? null, lastRow: over.at(-1)?.rowNumber ?? null },
+      duplicatesMerged: exact + fuzzy,
+      exactDuplicates: exact,
+      fuzzyDuplicates: fuzzy,
+      possibleDuplicatePairs: possible,
+      leadsOut: out.length,
+    },
+    leads: out,
   };
 }

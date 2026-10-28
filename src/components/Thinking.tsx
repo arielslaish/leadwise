@@ -5,6 +5,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "./ui";
+import { defaultFlowVariables } from "@/lib/flow";
+import { buildRows, summarize } from "@/lib/summary";
 import type { ScoreResponse } from "./types";
 
 const STEP_MS = 1400; // pacing for the quick steps
@@ -61,15 +63,14 @@ export function Thinking({
     }
   }, [step, result, onDone]);
 
-  const k = result?.kpis;
-  const scored = result && k ? result.leads.length - k.junkFlagged : 0;
+  const k = result ? summarize(buildRows(result.leads, defaultFlowVariables), result.import) : null;
   // `done` is the real count, shown only once the step is checked off.
   const steps = [
-    { label: "Reading your file", working: "Counting rows", done: `${rowCount} rows found` },
-    { label: "Cleaning and normalizing", working: "Fixing casing, cities, countries", done: k && `${k.junkFlagged} junk rows flagged` },
-    { label: "Merging duplicates", working: "Matching by email", done: k && `${k.duplicatesRemoved} duplicates merged` },
-    { label: "Scoring with Claude", working: SCORING_NOTES[note] + "…", done: k && `${scored} leads scored against the rubric` },
-    { label: "Routing through the Flow", working: "Assigning queues and tasks", done: k && `${k.hot} hot leads sent to AE queues` },
+    { label: "Reading your file", working: "Counting rows", done: k ? `${k.import.processed} of ${k.import.rowsInFile} rows processed` : `${rowCount} rows found` },
+    { label: "Checking data quality", working: "Emails, names, phones, companies, locations", done: k && `${k.quality.Invalid} invalid, ${k.quality["Needs review"]} need review` },
+    { label: "Merging duplicates", working: "Matching email, phone and name + company", done: k && `${k.duplicates.merged} merged, ${k.duplicates.flaggedForReview} flagged for review` },
+    { label: "Scoring with Claude", working: SCORING_NOTES[note] + "…", done: k && `${k.leads - k.quality.Invalid} valid leads scored against the rubric` },
+    { label: "Routing through the Flow", working: "Assigning queues and tasks", done: k && `${k.hot} Hot leads sent to AE queues` },
   ];
   const progress = Math.min(100, (step / steps.length) * 100 + (step === 3 && !result ? 8 : 0));
 

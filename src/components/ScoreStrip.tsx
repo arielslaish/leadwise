@@ -5,10 +5,14 @@
 
 import { useState } from "react";
 import { tierColor } from "./ui";
+import type { Tier } from "@/config/rubric";
+import type { Row } from "@/lib/summary";
 import type { ScoredLead } from "./types";
 
-export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
+export function ScoreStrip({ rows }: { rows: Row[] }) {
   const [active, setActive] = useState<ScoredLead | null>(null);
+  const tierOf = new Map<number, Tier>(rows.map((r) => [r.lead.id, r.flow.tier]));
+  const leads = rows.map((r) => r.lead).sort((a, b) => b.score - a.score);
 
   // Stack dots that land in the same 3-point bucket so none hide each other.
   // Tall stacks (e.g. dozens of junk rows at 0) are capped and summarized as "+N".
@@ -41,7 +45,7 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
         {dots.map(({ lead, level }) => (
           <button
             key={lead.id}
-            aria-label={`${lead.firstName} ${lead.lastName}, score ${lead.score}, ${lead.tier}`}
+            aria-label={`${lead.firstName} ${lead.lastName}, score ${lead.score}, ${tierOf.get(lead.id)}`}
             onMouseEnter={() => setActive(lead)}
             onFocus={() => setActive(lead)}
             onClick={() => setActive(lead)}
@@ -50,7 +54,7 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
           >
             <span
               className="block size-2.5 rounded-full ring-2 ring-white transition-transform hover:scale-150"
-              style={{ background: tierColor[lead.tier] }}
+              style={{ background: tierColor[tierOf.get(lead.id)!] }}
             />
           </button>
         ))}
@@ -72,7 +76,7 @@ export function ScoreStrip({ leads }: { leads: ScoredLead[] }) {
               {active.firstName} {active.lastName} · {active.company || "No company"}
             </div>
             <div className="text-white/70">
-              Score {active.score} · {active.tier}
+              Score {active.score} · {tierOf.get(active.id)}
             </div>
           </div>
         )}

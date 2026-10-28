@@ -2,19 +2,11 @@
 // icons, tier mix, routing and the top leads. The full list stays in the CSV.
 // Built in the browser like the CSV, so no data leaves it.
 
-import type { Tier } from "@/config/rubric";
-import type { FlowOutcome } from "./flow";
-import type { ScoredLead } from "./score";
+import { TIER_ORDER, type Tier } from "@/config/rubric";
+import type { Row, Summary } from "./summary";
 
-type Row = { lead: ScoredLead; flow: FlowOutcome };
-
-export type ReportInput = {
-  fileName: string;
-  rows: Row[];
-  kpis: { rowsIn: number; duplicatesRemoved: number; repHoursSaved: number };
-  hotCount: number;
-  avgScore: number;
-};
+// Same rows and summary the dashboard uses, so the PDF can't disagree with it.
+export type ReportInput = { fileName: string; rows: Row[]; summary: Summary };
 
 const C = {
   deep: [12, 42, 30],
@@ -87,14 +79,15 @@ export async function buildPdf(input: ReportInput) {
   doc.setFont("helvetica", "bold").setFontSize(20).text("Who to call first", M, 44);
 
   // KPI tiles
+  const S = input.summary;
   const kpis: [string, string][] = [
-    [String(input.kpis.rowsIn), "Rows in"],
-    [String(input.kpis.duplicatesRemoved), "Duplicates merged"],
-    [String(input.hotCount), "Hot accounts"],
-    [`${input.kpis.repHoursSaved}h`, "Rep hours saved (est.)"],
+    [String(S.import.processed), "Rows processed"],
+    [String(S.duplicates.merged), "Duplicates merged"],
+    [String(S.hot), "Hot accounts"],
+    [String(S.quality.Invalid), "Invalid records"],
   ];
   const kw = (W - 2 * M - 3 * 4) / 4;
-  // Small line icons, drawn in white on a green dot: list, merge, flame-ish target, clock.
+  // Small line icons, drawn in white on a green dot: list, merge, target, alert.
   const icon = (kind: number, cx: number, cy: number) => {
     fill(C.forest);
     doc.circle(cx, cy, 3.6, "F");
@@ -109,9 +102,8 @@ export async function buildPdf(input: ReportInput) {
       doc.circle(cx, cy, 1.8, "S");
       doc.circle(cx, cy, 0.6, "F");
     } else {
-      doc.circle(cx, cy, 1.8, "S");
-      doc.line(cx, cy, cx, cy - 1.2);
-      doc.line(cx, cy, cx + 0.9, cy + 0.5);
+      doc.line(cx, cy - 1.6, cx, cy + 0.5);
+      doc.circle(cx, cy + 1.5, 0.35, "F");
     }
   };
   kpis.forEach(([v, l], i) => {
@@ -127,10 +119,9 @@ export async function buildPdf(input: ReportInput) {
 
   // Hero tiles
   const hw = (W - 2 * M - 4) / 2;
-  const scored = input.rows.filter((r) => r.lead.tier !== "Disqualify").length;
   const hero: [readonly number[], string, string, string][] = [
-    [C.forest, "Average lead score", String(input.avgScore), "of 100, excluding junk"],
-    [C.bright, "Hot accounts", String(input.hotCount), `${scored ? Math.round((input.hotCount / scored) * 100) : 0}% of clean leads`],
+    [C.forest, "Average lead score", String(S.avgScore), "of 100, valid records only"],
+    [C.bright, "Hot accounts", String(S.hot), `${S.hotShareOfValid}% of valid leads`],
   ];
   hero.forEach(([c, label, value, cap], i) => {
     const x = M + i * (hw + 4);
@@ -143,10 +134,9 @@ export async function buildPdf(input: ReportInput) {
   });
 
   // Tier mix (left) and routing (right)
-  const tiers: Tier[] = ["Hot", "Warm", "Nurture", "Disqualify"];
-  const counts = new Map<Tier, number>();
-  for (const r of input.rows) counts.set(r.lead.tier, (counts.get(r.lead.tier) ?? 0) + 1);
-  const total = input.rows.length || 1;
+  const tiers: Tier[] = TIER_ORDER;
+  const counts = new Map<Tier, number>(tiers.map((t) => [t, S.tiers[t]]));
+  const total = S.leads || 1;
   text(C.ink);
   doc.setFont("helvetica", "bold").setFontSize(10).text("Tier mix", M, 117);
   let bx = M;
@@ -168,15 +158,21 @@ export async function buildPdf(input: ReportInput) {
     text(C.ink);
     doc.text(String(counts.get(tier) ?? 0), x + hw / 2 - 6, y, { align: "right" });
   });
+  doc.setFontSize(7);
+  text(C.ink3);
+  doc.text(`Data quality: ${S.quality.Valid} valid · ${S.quality["Needs review"]} need review · ${S.quality.Invalid} invalid`, M, 144);
+  const skipped = S.import.overLimit.count + S.import.emptyRowsSkipped;
+  doc.text(
+    `Import: ${S.import.rowsInFile + S.import.emptyRowsSkipped} uploaded · ${S.import.processed} processed · ${S.duplicates.merged} merged · ${skipped} skipped`,
+    M,
+    148.5,
+  );
 
   const rx = M + hw + 4;
   text(C.ink);
   doc.setFont("helvetica", "bold").setFontSize(10).text("Routed to", rx, 117);
-  const owners = new Map<string, number>();
-  for (const r of input.rows) owners.set(r.flow.owner, (owners.get(r.flow.owner) ?? 0) + 1);
   doc.setFont("helvetica", "normal").setFontSize(8);
-  [...owners.entries()]
-    .sort((a, b) => b[1] - a[1])
+  S.owners
     .slice(0, 6)
     .forEach(([o, n], i) => {
       const y = 123 + i * 4.6;
@@ -188,12 +184,16 @@ export async function buildPdf(input: ReportInput) {
 
   // Top leads: just enough to act on, so the report stays one page
   const TOP = 6;
-  const top = input.rows.filter((r) => r.lead.tier !== "Disqualify").slice(0, TOP);
+  const top = input.rows.filter((r) => r.flow.tier === "Hot" || r.flow.tier === "Warm").slice(0, TOP);
   text(C.ink);
   doc.setFont("helvetica", "bold").setFontSize(12).text("Call these first", M, 158);
   doc.setFont("helvetica", "normal").setFontSize(7.5);
   text(C.ink3);
-  doc.text(`Top ${top.length} of ${input.rows.length} leads · full ranked list in the CSV`, W - M, 158, { align: "right" });
+  doc.text(`Top ${top.length} of ${S.leads} leads · full ranked list in the CSV`, W - M, 158, { align: "right" });
+  if (!top.length) {
+    text(C.ink2);
+    doc.setFontSize(9).text("No Hot or Warm leads in this list yet. See the CSV for every record and its routing.", M, 168);
+  }
 
   const rowH = 13;
   top.forEach(({ lead, flow }, i) => {
@@ -212,10 +212,10 @@ export async function buildPdf(input: ReportInput) {
     doc.setFont("helvetica", "normal").setFontSize(7);
     doc.text(t(`${lead.title || "No title"} · ${lead.company || "-"}`).slice(0, 52), M + 19, y + 9.8);
     // Tier pill
-    doc.setFillColor(...TIER_RGB[lead.tier]);
+    doc.setFillColor(...TIER_RGB[flow.tier]);
     doc.circle(M + 99, y + 6.5, 1.1, "F");
     text(C.ink);
-    doc.setFont("helvetica", "bold").setFontSize(7.5).text(lead.tier, M + 101.5, y + 7.5);
+    doc.setFont("helvetica", "bold").setFontSize(7.5).text(flow.tier, M + 101.5, y + 7.5);
     // Reason and queue
     text(C.ink2);
     doc.setFont("helvetica", "normal").setFontSize(6.8);

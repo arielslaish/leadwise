@@ -5,7 +5,9 @@
 import Papa from "papaparse";
 import { useMemo, useState } from "react";
 import type { Tier } from "@/config/rubric";
-import { defaultFlowVariables, runLeadFlow, type FlowVariables } from "@/lib/flow";
+import { defaultFlowVariables, type FlowVariables } from "@/lib/flow";
+import { buildRows, csvRecords, summarize, type Corrections } from "@/lib/summary";
+import { AuditPanel, ImportPanel } from "./Audit";
 import { Breakdown } from "./Breakdown";
 import { FlowCard } from "./FlowCard";
 import { downloadPdf } from "@/lib/report";
@@ -21,23 +23,29 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
   const [flowVars, setFlowVars] = useState<FlowVariables>(defaultFlowVariables);
   const [gateOpen, setGateOpen] = useState(false);
 
-  const rows = useMemo(() => result.leads.map((lead) => ({ lead, flow: runLeadFlow(lead, flowVars) })), [result, flowVars]);
-  const hotCount = rows.filter((r) => r.flow.route === "Hot").length;
-  const scored = rows.filter((r) => r.lead.tier !== "Disqualify");
-  const avgScore = scored.length ? Math.round(scored.reduce((s, r) => s + r.lead.score, 0) / scored.length) : 0;
+  const [corrections, setCorrections] = useState<Corrections>({});
+  // One classification feeds every number on the page, the CSV and the PDF.
+  const rows = useMemo(() => buildRows(result.leads, flowVars, corrections), [result, flowVars, corrections]);
+  const summary = useMemo(() => summarize(rows, result.import), [rows, result.import]);
+  const hotCount = summary.hot;
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const visible = rows.filter(
     (r) =>
-      (filter === "All" || r.lead.tier === filter) &&
+      (filter === "All" || r.flow.tier === filter) &&
       (!q ||
         [r.lead.firstName, r.lead.lastName, r.lead.company, r.lead.title, r.lead.region, r.flow.owner]
           .join(" ")
           .toLowerCase()
           .includes(q)),
   );
-  const tierCounts = new Map<Tier, number>();
-  for (const r of rows) tierCounts.set(r.lead.tier, (tierCounts.get(r.lead.tier) ?? 0) + 1);
+  const correct = (id: number, t: Tier | null) =>
+    setCorrections((c) => {
+      const next = { ...c };
+      if (t) next[id] = t;
+      else delete next[id];
+      return next;
+    });
 
   function showTier(t: Tier | "All") {
     setFilter(t);
@@ -45,30 +53,11 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
   }
 
   function downloadReport() {
-    downloadPdf({ fileName, rows, kpis: result.kpis, hotCount, avgScore });
+    downloadPdf({ fileName, rows, summary });
   }
 
   function downloadCsv() {
-    const csv = Papa.unparse(
-      rows.map(({ lead, flow }, i) => ({
-        rank: i + 1,
-        first_name: lead.firstName,
-        last_name: lead.lastName,
-        email: lead.email,
-        title: lead.title,
-        company: lead.company,
-        segment: lead.segment,
-        region: lead.region,
-        score: lead.score,
-        tier: lead.tier,
-        seniority: lead.seniority,
-        intent: lead.intent,
-        reason: lead.reason,
-        routed_to: flow.owner,
-        task: flow.task ? `${flow.task.subject} (${flow.task.priority}, due in ${flow.task.dueInDays}d)` : "",
-        sources: lead.sources.join("; "),
-      })),
-    );
+    const csv = Papa.unparse(csvRecords(rows));
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: "leadwise-scored.csv" });
     a.click();
@@ -97,17 +86,17 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           <div>
             <p className="text-xs text-ink-3">{fileName}</p>
             <h1 className="mt-1 font-display text-4xl font-medium tracking-tight sm:text-5xl">Who to call first</h1>
-            {result.kpis.truncatedFrom && (
-              <p className="mt-2 text-xs text-ink-2">
-                Your file had {result.kpis.truncatedFrom} rows; the first 100 were scored.
+            {result.import.overLimit.count > 0 && (
+              <p className="mt-2 text-xs text-[#8a5d00]">
+                {result.import.overLimit.count} rows over the {result.import.processed}-row limit were not processed. See the import summary below.
               </p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-            <Kpi value={result.kpis.rowsIn} label="Rows in" tag="Raw" />
-            <Kpi value={result.kpis.duplicatesRemoved} label="Duplicates merged" tag="Cleaned" tone="gray" />
+            <Kpi value={result.import.processed} label="Rows processed" tag="Raw" />
+            <Kpi value={summary.duplicates.merged} label="Duplicates merged" tag="Cleaned" tone="gray" />
             <Kpi value={hotCount} label="Hot accounts" tag="Call now" />
-            <Kpi value={result.kpis.repHoursSaved} label="Rep hours saved" tag="Est." tone="gray" suffix="h" />
+            <Kpi value={summary.quality.Invalid} label="Invalid records" tag="To hygiene" tone="gray" />
           </div>
         </header>
 
@@ -124,21 +113,21 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
               <span className="size-2 rounded-full" style={{ background: t === "All" ? "var(--brand)" : tierColor[t] }} />
               {t === "All" ? "All leads" : t}
               <span className={`tabular-nums ${filter === t ? "text-white/60" : "text-ink-3"}`}>
-                {t === "All" ? rows.length : (tierCounts.get(t) ?? 0)}
+                {t === "All" ? rows.length : summary.tiers[t]}
               </span>
             </button>
           ))}
         </div>
 
-        <ScoreStrip leads={result.leads} />
+        <ScoreStrip rows={rows} />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <HeroCard className="grad-forest" label="Average lead score" value={avgScore} caption="of 100, excluding junk" />
+          <HeroCard className="grad-forest" label="Average lead score" value={summary.avgScore} caption="of 100, valid records only" />
           <HeroCard
             className="grad-bright"
             label="Hot accounts"
             value={hotCount}
-            caption={`${scored.length ? Math.round((hotCount / scored.length) * 100) : 0}% of clean leads`}
+            caption={`${summary.hotShareOfValid}% of valid leads`}
           />
           <div className="md:col-span-2 xl:col-span-1">
             <FlowCard vars={flowVars} onChange={setFlowVars} outcomes={rows.map((r) => r.flow)} />
@@ -150,7 +139,7 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
           <div>
             <SectionTitle title="Breakdown" sub="Where the list stands after cleaning" />
-            <Breakdown leads={result.leads} />
+            <Breakdown rows={rows} />
           </div>
           <div>
             <SectionTitle
@@ -159,10 +148,10 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
               action={<PillButton onClick={() => showTier("Hot")}>See all Hot</PillButton>}
             />
             <div className="grid gap-3 sm:grid-cols-3">
-              {rows.slice(0, 3).map(({ lead, flow }) => (
+              {rows.filter((r) => r.flow.tier === "Hot" || r.flow.tier === "Warm").slice(0, 3).map(({ lead, flow }) => (
                 <div key={lead.id} className="card flex flex-col p-5">
                   <div className="flex items-start justify-between">
-                    <TierChip tier={lead.tier} />
+                    <TierChip tier={flow.tier} />
                     <span className="font-display text-4xl font-medium leading-none">{lead.score}</span>
                   </div>
                   <p className="mt-4 text-sm font-medium">
@@ -179,10 +168,15 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
           </div>
         </div>
 
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ImportPanel summary={summary} rows={rows} />
+          <AuditPanel summary={summary} />
+        </div>
+
         <section id="ranked" className="card scroll-mt-20 p-4 sm:p-6">
           <SectionTitle
             title={filter === "All" ? "Ranked leads" : `${filter} leads`}
-            sub={`${visible.length} of ${rows.length} leads · scored by Claude, routed by the flow above`}
+            sub={`${visible.length} of ${rows.length} leads · click a lead for its score breakdown, data issues and routing`}
             action={
               <PillButton dark onClick={() => setGateOpen(true)}>
                 Download
@@ -220,14 +214,14 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
               className="w-full rounded-full bg-white px-4 py-2 text-xs ring-1 ring-line outline-none focus:ring-brand/50 sm:w-64"
             />
           </div>
-          <LeadTable rows={visible} />
+          <LeadTable rows={visible} onCorrect={correct} />
         </section>
 
         <Footer />
       </main>
 
       {gateOpen && (
-        <GateModal stats={{ rowsIn: result.kpis.rowsIn, hot: hotCount }} onDownload={(f) => (f === "pdf" ? downloadReport() : downloadCsv())} onClose={() => setGateOpen(false)} />
+        <GateModal stats={{ rowsIn: result.import.processed, hot: hotCount }} onDownload={(f) => (f === "pdf" ? downloadReport() : downloadCsv())} onClose={() => setGateOpen(false)} />
       )}
     </div>
   );

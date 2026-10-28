@@ -13,9 +13,9 @@ flowchart LR
     U([Visitor]) -->|CSV upload| UI[Dashboard<br/>Next.js on Vercel]
 
     subgraph API["POST /api/score (serverless)"]
-        RL{{Rate limit<br/>per IP + global}} --> P[Parse<br/>map columns, 100-row cap]
-        P --> C[Clean<br/>normalize, dedupe, flag junk]
-        C --> S[Score<br/>parallel Claude Haiku calls<br/>structured JSON]
+        RL{{Rate limit<br/>per IP + global}} --> P[Parse<br/>map columns, 100-row cap,<br/>count every row]
+        P --> C[Clean<br/>enrich, validate, dedupe<br/>with audit trail]
+        C --> S[Classify<br/>parallel Claude Haiku calls<br/>structured JSON]
     end
 
     UI --> RL
@@ -23,7 +23,7 @@ flowchart LR
     S <-.-> A[Anthropic API]
     S -->|scored leads| UI
 
-    UI --> F[Routing flow<br/>tier → queue → task<br/>adjustable live]
+    UI --> F[classifyLead<br/>data quality + score → tier<br/>→ queue → task]
     F -. same logic .-> SF[[Salesforce Flow<br/>salesforce/]]
 
     UI -->|email + consent| G[POST /api/capture]
@@ -31,18 +31,26 @@ flowchart LR
     UI -->|CSV built in browser| U
 ```
 
-1. **Rate limit**: 3 uploads per IP per day and 150 overall, counted in Redis. Without Redis in production the API refuses to run.
-2. **Parse and clean** (no AI): common header aliases, title-casing, "TLV" → Tel Aviv, "NYC" → New York, merge duplicates by email, flag test and no-reply rows.
-3. **Score**: clean rows are split into chunks of 10 and scored in parallel by Claude Haiku against the rubric, returning schema-validated JSON. Junk rows never reach the model. The tier comes from the score in code, so the cut-offs stay deterministic.
-4. **Route**: the dashboard runs the same logic as the Salesforce Flow in [`salesforce/`](salesforce/), and visitors can change its two variables.
-5. **Download gate**: email and consent go to `/api/capture`, which emails the owner. The scored CSV is generated in the browser, and uploaded data is never stored.
+1. **Rate limit**: 3 uploads per IP per day and 150 overall, counted in Redis. Without Redis in production the API refuses to run. The owner can bypass it with `OWNER_KEY`.
+2. **Parse**: common header aliases (including full names, phones, states), original row numbers kept. Files over 100 rows get a notice first; skipped and empty rows are counted and listed, never dropped silently.
+3. **Clean** (no AI):
+   - *Enrich*: segment from company size ("51-200 employees", "1K-5K", "Enterprise"), region from country, city, state or email domain. Anything we can't place is "Unavailable", not blank.
+   - *Validate*: every issue per lead (malformed email, missing name or company, invalid phone, placeholder or suspicious names, conflicting location, unreadable size). Data quality is Valid, Needs review or Invalid, separate from lead quality.
+   - *Dedupe*: exact (email, phone, name + company) and fuzzy (similar name, same company) matching. Conflicting pairs (e.g. same name, different emails) are flagged for review instead of merged. Every merge is recorded.
+4. **Classify and score**: Claude labels seniority, industry fit, the strongest buying signal (with the quoted evidence) and explicit "not interested". Code adds the rubric points, so every score has a line-by-line breakdown. Strong signals (pricing or demo request, purchase intent, renewal, expansion) outweigh weak ones (a guide download).
+5. **Tier and route** (`src/lib/flow.ts`, one function used by the dashboard, CSV and PDF): invalid data → Data Hygiene; explicit no interest → Do Not Contact; then Hot / Warm by score, strong signals at least Warm, everything else valid → Nurture. A low score never disqualifies. Every decision has a written reason.
+6. **Download gate**: email and consent go to `/api/capture`, which emails the owner. The CSV and one-page PDF are generated in the browser from the same rows and summary as the dashboard; uploaded data is never stored.
 
 | Piece | File |
 |---|---|
 | Scoring rubric (editable) | `src/config/rubric.ts` |
 | Cleaning and dedupe | `src/lib/clean.ts` |
 | Claude scoring | `src/lib/score.ts` |
-| Routing flow | `src/lib/flow.ts` |
+| Tier and routing (single source of truth) | `src/lib/flow.ts` |
+| Location enrichment | `src/lib/geo.ts` |
+| Shared summary + CSV records | `src/lib/summary.ts` |
+| PDF report | `src/lib/report.ts` |
+| Regression tests | `tests/` (`npm test`) |
 | Rate limiting | `src/lib/rateLimit.ts` |
 | API routes | `src/app/api/score`, `src/app/api/capture` |
 | Salesforce Flow, fields, queues | [`salesforce/`](salesforce/) |
@@ -61,7 +69,7 @@ cp .env.example .env.local   # add keys; without ANTHROPIC_API_KEY a local rubri
 npm run dev
 ```
 
-Click **Try sample data** to run the included fictional list (`public/sample-leads.csv`).
+Click **Run the sample list** to try the included fictional list (`public/sample-leads.csv`). Run `npm test` for the regression suite.
 
 ## Cost and safety
 

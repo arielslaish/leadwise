@@ -1,10 +1,10 @@
-// POST /api/score — CSV text in, cleaned + Claude-scored rows out.
-// Pipeline: rate-limit by IP -> parse -> clean/dedupe -> one batched Haiku call.
+// POST /api/score — CSV text in, cleaned + scored leads and an import summary out.
+// Pipeline: parse -> rate-limit by IP -> clean/validate/dedupe -> classify with Claude.
+// Tier and routing are applied by the client (src/lib/flow.ts) so the sliders work live.
 // Nothing is stored or logged: the CSV lives only in this request's memory.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { MAX_ROWS, MINUTES_SAVED_PER_ROW } from "@/config/rubric";
 import { cleanRows, parseCsv } from "@/lib/clean";
 import { checkScoreLimits, clientIp, isOwner } from "@/lib/rateLimit";
 import { scoreLeads } from "@/lib/score";
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return Response.json({ error: "Send { csv } under 200KB." }, { status: 400 });
 
-  const { rows: allRows, columns } = parseCsv(body.data.csv);
+  const { rows: allRows, columns, emptyRows } = parseCsv(body.data.csv);
   if (allRows.length === 0) return Response.json({ error: "No rows found. Check the CSV has a header row." }, { status: 400 });
   if (!columns.includes("email") && !columns.includes("company")) {
     return Response.json(
@@ -25,9 +25,6 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  // Long lists are trimmed rather than rejected, so any export works out of the box.
-  const rows = allRows.slice(0, MAX_ROWS);
-
   // Validate before rate-limiting so a malformed file doesn't burn a visitor's quota.
   const owner = isOwner(req);
   if (!owner) {
@@ -35,21 +32,11 @@ export async function POST(req: Request) {
     if (!limit.ok) return Response.json({ error: limit.error }, { status: limit.status });
   }
 
-  const cleaned = cleanRows(rows);
+  // Lists over the limit are processed up to MAX_ROWS; the rest are counted and reported, not dropped silently.
+  const cleaned = cleanRows(allRows, emptyRows);
   try {
     const leads = await scoreLeads(cleaned.leads);
-    return Response.json({
-      kpis: {
-        rowsIn: cleaned.rowsIn,
-        duplicatesRemoved: cleaned.duplicatesRemoved,
-        junkFlagged: cleaned.junkFlagged,
-        hot: leads.filter((l) => l.tier === "Hot").length,
-        repHoursSaved: Math.round((cleaned.rowsIn * MINUTES_SAVED_PER_ROW) / 6) / 10,
-        truncatedFrom: allRows.length > MAX_ROWS ? allRows.length : null,
-      },
-      owner,
-      leads,
-    });
+    return Response.json({ import: cleaned.summary, owner, leads });
   } catch (err) {
     const status = err instanceof Anthropic.RateLimitError ? 429 : 502;
     console.error("score failed:", err instanceof Error ? err.message : "unknown");

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Lead_Tier__c</fullName>
-    <description>Tier derived from Lead Score: Hot 75+, Warm 55+, Nurture 30+, else Disqualify.</description>
+    <description>Set by Leadwise: Hot and Warm from score thresholds (strong buying signals are at least Warm), Nurture for other valid leads, Disqualify only for invalid data or explicit no interest.</description>
     <label>Lead Tier</label>
     <type>Picklist</type>
     <valueSet>
