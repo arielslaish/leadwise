@@ -167,6 +167,19 @@ describe("scoring and tiers", () => {
     expect(bob.intentStrength).toBe("Weak");
   });
 
+  it("scores vague interest below an explicit pricing request", async () => {
+    const { leads } = await pipeline(
+      csv(
+        "Amy,One,amy@one.co,,Owner,One Co,50,Software,Austin,USA,Requested pricing for two locations",
+        "Bob,Two,bob@two.co,,Owner,Two Co,50,Software,Austin,USA,Asked about recurring coffee delivery",
+      ),
+    );
+    expect(find(leads, "Amy").intentStrength).toBe("Strong");
+    expect(find(leads, "Bob").intent).toBe("General product interest");
+    expect(find(leads, "Bob").intentStrength).toBe("Medium");
+    expect(find(leads, "Amy").score).toBeGreaterThan(find(leads, "Bob").score);
+  });
+
   it("explains every score: the breakdown rescaled to 100 is the score", async () => {
     const { leads } = await pipeline(readFileSync("public/sample-leads.csv", "utf8"));
     for (const l of leads) {

@@ -62,15 +62,17 @@ For each lead return:
 - seniority: C-level, VP, Director, Manager, IC, or Unavailable (no title). Founders and "Head of" count as VP, or C-level at companies under 20 people. "Chief of Staff" is Director, not C-level.
 - industryFit: Core (${rubric.industry.tiers[0].examples}), Adjacent (${rubric.industry.tiers[1].examples}), Other, or Unavailable (no industry and nothing in the company name or notes to infer it).
 - intent: the STRONGEST buying signal in the notes, exactly one of:
-  "Pricing or demo request" (asked for pricing, a quote, a demo or a trial),
-  "Direct purchase intent" (ready to buy, has budget, asked for a contract or proposal),
+  "Pricing or demo request" (explicitly requested pricing, a quote, a demo or a trial),
+  "Direct purchase intent" (ready to buy, budget approved, asked for a contract or proposal to sign),
   "Contract renewal coming up" (current vendor contract ending or up for renewal),
-  "Expansion / multiple locations" (opening sites, many branches, scaling the team),
-  "Evaluating vendors" (comparing options, running an RFP, shortlisting),
-  "Event or meeting conversation" (met at an event, booth chat, intro call),
+  "Expansion / multiple locations" (opening sites, many branches, growing headcount or office space),
+  "Evaluating vendors" (comparing options, running an RFP, shortlisting, waiting on internal or finance approval),
+  "General product interest" (asked about, interested in or looking for the product or its options, without requesting pricing or a demo),
+  "Event or meeting conversation" (met at an event, booth chat, intro call, follow-up after a review),
   "Content download / webinar" (downloaded a guide, attended a webinar, subscribed),
   "No signal found".
-  A guide download or webinar is a weak signal, never a strong one.
+  Be strict about the first four: they need an explicit action, not curiosity. "Asked about delivery options" or
+  "interested in restocking" is General product interest, not a pricing request. A guide download or webinar is weak.
 - intentEvidence: the exact words from the notes that show the signal, or "" if none.
 - notInterested: true only if the notes say plainly they are not interested, asked not to be contacted, or already bought elsewhere.
 - reason: one plain sentence (max 22 words) a sales rep would find useful. Mention the signal if there is one. No score numbers.
@@ -115,11 +117,12 @@ export function industryFitOf(industry: string): IndustryFit {
 
 const NOT_INTERESTED = /not interested|no interest|unsubscribe|do not contact|don'?t contact|remove me|stop (emailing|contacting)|already (bought|signed|chose)|went with (a |another )?(competitor|vendor)/i;
 const INTENT_RULES: [Intent, RegExp][] = [
-  ["Pricing or demo request", /pricing|price|quote|demo|trial|cost/i],
+  ["Pricing or demo request", /pricing|price|quote|\bdemo\b|trial/i],
   ["Direct purchase intent", /ready to (buy|sign|purchase)|budget (approved|allocated)|proposal|contract (draft|to sign)|purchase order|want(s)? to buy/i],
   ["Contract renewal coming up", /renewal|renew\b|contract[^.]{0,40}\b(end|ends|ending|expire|expires|expiring|up)\b|current vendor contract/i],
   ["Expansion / multiple locations", /multiple (locations|sites|offices|branches)|\d+ (locations|sites|offices|branches|stores)|expanding|new (office|location)|scaling/i],
-  ["Evaluating vendors", /evaluat|compar|rfp|shortlist|vendor (search|selection)|considering/i],
+  ["Evaluating vendors", /evaluat|compar|rfp|shortlist|vendor (search|selection)|considering|approval from/i],
+  ["General product interest", /interested in|asked about|asked for (a )?sample|looking for|curious|options/i],
   ["Event or meeting conversation", /met at|booth|event|conference|intro call|wants a call|follow up/i],
   ["Content download / webinar", /download|guide|ebook|e-book|whitepaper|webinar|newsletter|subscribed/i],
 ];
