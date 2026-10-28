@@ -4,7 +4,7 @@
 
 Leadwise takes a messy CSV of leads (inbound forms, event scans, list imports), cleans it, scores every row with Claude against a transparent ICP rubric, and routes each lead the way a Salesforce record-triggered Flow would.
 
-Built by [Ariel Laish](https://www.linkedin.com/in/ariellaish) as a working demo of GTM engineering: data hygiene, AI lead scoring, routing logic and a deployed backend.
+Built by [Ariel Laish](https://www.linkedin.com/in/ariellaish) as a working demo of GTM and RevOps analytics: data hygiene, AI lead scoring, routing logic and a deployed backend.
 
 ## Architecture
 

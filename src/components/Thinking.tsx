@@ -115,7 +115,7 @@ export function Thinking({
             })}
           </ol>
           <p className="mt-7 border-t border-line pt-4 text-center text-[11px] text-ink-3">
-            This engine was built by Ariel Laish, GTM engineer. Imagine it on your pipeline.
+            This engine was built by Ariel Laish, GTM analyst. Imagine it on your pipeline.
           </p>
         </div>
       </div>

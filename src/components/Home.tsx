@@ -52,7 +52,7 @@ export function Home({ onSample, onFile, error }: { onSample: () => void; onFile
               />
               <div>
                 <p className="font-display text-lg font-medium leading-tight">Ariel Laish</p>
-                <p className="text-xs text-ink-3">GTM engineer · RevOps · AI automation</p>
+                <p className="text-xs text-ink-3">GTM analyst · RevOps · AI automation</p>
               </div>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-ink">

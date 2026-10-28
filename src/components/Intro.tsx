@@ -37,7 +37,7 @@ export function Intro({ onStart, onHowItWorks }: { onStart: () => void; onHowItW
               <a href={LINKEDIN_URL} target="_blank" rel="noreferrer" className="font-medium text-white underline-offset-4 hover:underline">
                 Ariel Laish
               </a>
-              , a GTM engineer. I built this to show what I can build for your team.{" "}
+              , a GTM analyst. I built this to show what I can build for your team.{" "}
               <span className="text-white">If I can do this for free, imagine it running on your pipeline full-time.</span>
             </p>
             <div className="mt-3">
