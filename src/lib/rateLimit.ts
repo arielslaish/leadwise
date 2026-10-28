@@ -58,8 +58,10 @@ export function clientIp(req: Request): string {
 // ?owner=<key>; the browser then sends it on every upload and skips both limits.
 // The Anthropic console spend limit remains the hard backstop.
 export function isOwner(req: Request): boolean {
-  const expected = process.env.OWNER_KEY;
-  const given = req.headers.get("x-owner-key");
+  // Tolerate stray spaces or quotes pasted into the Vercel dashboard.
+  const clean = (v: string | null | undefined) => v?.trim().replace(/^["']|["']$/g, "") || null;
+  const expected = clean(process.env.OWNER_KEY);
+  const given = clean(req.headers.get("x-owner-key"));
   if (!expected || !given) return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(given);
