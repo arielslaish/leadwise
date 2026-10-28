@@ -124,7 +124,8 @@ export function resolvePlace(input: { country?: string; city?: string; state?: s
   let source: Place["source"] = country ? "country" : "none";
   if (!country && parts.length > 1) {
     for (const p of parts.slice(1).reverse()) {
-      country = toCountry(p);
+      // "San Diego, CA": a two-letter part after a city is a US state, not Canada.
+      country = US_STATES.has(key(p)) ? "United States" : toCountry(p);
       if (country) break;
     }
     if (country) source = "city";

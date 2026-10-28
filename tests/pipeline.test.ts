@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { cleanRows, parseCsv } from "@/lib/clean";
 import { defaultFlowVariables, type FlowVariables } from "@/lib/flow";
+
+// Score-only behaviour, for tests about scoring rather than the user's Hot rules.
+const scoreOnly: FlowVariables = { ...defaultFlowVariables, hotRules: { ...defaultFlowVariables.hotRules, enabled: false } };
 import { buildPdf } from "@/lib/report";
 import { scoreLeads, type ScoredLead } from "@/lib/score";
 import { buildRows, csvRecords, summarize } from "@/lib/summary";
@@ -23,7 +26,7 @@ function clean(text: string) {
 
 async function pipeline(text: string, vars: FlowVariables = defaultFlowVariables) {
   const cleaned = clean(text);
-  const leads = await scoreLeads(cleaned.leads);
+  const leads = await scoreLeads(cleaned.leads, cleaned.summary.missingColumns);
   const rows = buildRows(leads, vars);
   return { cleaned, leads, rows, summary: summarize(rows, cleaned.summary) };
 }
@@ -114,8 +117,13 @@ describe("data quality", () => {
     expect(r.leads[1].issues.map((i) => i.code)).toEqual(expect.arrayContaining(["placeholder", "email_test"]));
   });
 
+  it("flags keyboard-mash and symbol-only names", () => {
+    const r = clean(csv("ajshdkjasd,Howard,a@howard.io,,CEO,Howard,50,Software,,USA,", "Ryan,???,r@fable.io,,CEO,Fable,50,Software,,USA,"));
+    expect(r.leads.every((l) => l.issues.some((i) => i.code === "name_suspicious"))).toBe(true);
+  });
+
   it("does not flag real names that look like test words", () => {
-    const r = clean(csv("Tal,Bar,tal@tinyshop.co,,Analyst,Sample Labs,40,Software,Haifa,Israel,"));
+    const r = clean(csv("Tal,Bar,tal@samplelabs.co,,Analyst,Sample Labs,40,Software,Haifa,Israel,"));
     expect(r.leads[0].issues.map((i) => i.code)).not.toContain("placeholder");
     expect(r.leads[0].quality).toBe("Valid");
   });
@@ -129,13 +137,13 @@ describe("data quality", () => {
 describe("scoring and tiers", () => {
   it("keeps a valid, high-intent lead out of Data Hygiene even with a low score", async () => {
     const text = csv("Tal,Bar,tal@tinyshop.co,,Analyst,TinyShop,4,Retail,,,Requested pricing for 3 stores");
-    const { rows } = await pipeline(text);
+    const { rows } = await pipeline(text, scoreOnly);
     expect(rows[0].lead.score).toBeLessThan(defaultFlowVariables.warmThreshold);
     expect(rows[0].lead.intentStrength).toBe("Strong");
     expect(rows[0].flow.tier).toBe("Warm");
     expect(rows[0].flow.owner).toBe("SDR Queue");
 
-    const off = await pipeline(text, { ...defaultFlowVariables, promoteStrongSignals: false });
+    const off = await pipeline(text, { ...scoreOnly, promoteStrongSignals: false });
     expect(off.rows[0].flow.tier).toBe("Nurture");
   });
 
@@ -159,9 +167,22 @@ describe("scoring and tiers", () => {
     expect(bob.intentStrength).toBe("Weak");
   });
 
-  it("explains every score: breakdown points add up to the score", async () => {
+  it("explains every score: the breakdown rescaled to 100 is the score", async () => {
     const { leads } = await pipeline(readFileSync("public/sample-leads.csv", "utf8"));
-    for (const l of leads) expect(l.breakdown.reduce((s, b) => s + b.points, 0)).toBe(l.score);
+    for (const l of leads) {
+      const pts = l.breakdown.reduce((s, b) => s + b.points, 0);
+      const max = l.breakdown.reduce((s, b) => s + b.max, 0);
+      expect(Math.round((pts / max) * 100)).toBe(l.score);
+    }
+  });
+
+  it("doesn't penalize leads for columns the whole file lacks", async () => {
+    const text = ["name,email,title,company,city,notes", "Ana Gold,ana@gold.io,VP Operations,Gold Co,\"Boston, MA\",Requested pricing"].join("\n");
+    const { cleaned, leads } = await pipeline(text);
+    expect(cleaned.summary.missingColumns).toEqual(["Company size", "Industry"]);
+    const excluded = leads[0].breakdown.filter((b) => b.value === "Not in your file").map((b) => b.criterion);
+    expect(excluded).toHaveLength(2);
+    expect(leads[0].score).toBeGreaterThanOrEqual(75); // VP + pricing + US + complete, out of the 65 points that apply
   });
 
   it("handles conflicting signals: strong intent + not interested goes to review, not Disqualify", async () => {
@@ -177,6 +198,47 @@ describe("scoring and tiers", () => {
     expect(cara.flow.task?.subject).toBe("Review conflicting signals");
     expect(nick.flow.tier).toBe("Disqualify");
     expect(nick.flow.owner).toBe("Do Not Contact");
+  });
+});
+
+describe("user-defined Hot rules", () => {
+  const H = "first_name,last_name,email,title,company,city,status,estimated_monthly_spend,last_contacted,notes";
+  const rows = (...l: string[]) => [H, ...l].join("\n");
+  const withRules = (patch: Partial<FlowVariables["hotRules"]>): FlowVariables => ({
+    ...defaultFlowVariables,
+    hotRules: { ...defaultFlowVariables.hotRules, ...patch },
+  });
+
+  it("makes a low-scoring lead Hot when it matches the user's actions and recency", async () => {
+    const text = rows(
+      'Amy,Lane,amy@lane.co,Office Manager,Lane Co,"Austin, TX",Proposal sent,900,2026-10-20,',
+      'Ben,Moss,ben@moss.co,Office Manager,Moss Co,"Austin, TX",Proposal sent,900,2026-09-01,',
+      'Cal,Reed,cal@reed.co,Office Manager,Reed Co,"Austin, TX",New,900,2026-10-21,Downloaded a guide',
+    );
+    const { rows: r } = await pipeline(text, withRules({ actions: ["Proposal sent"], withinDays: 3, fromNewestDate: true }));
+    const tier = (n: string) => r.find((x) => x.lead.firstName === n)!.flow;
+    expect(tier("Amy").tier).toBe("Hot"); // 1 day before the newest date
+    expect(tier("Amy").why).toMatch(/Matches your Hot rule: Proposal sent/);
+    expect(tier("Ben").tier).not.toBe("Hot"); // too long ago
+    expect(tier("Cal").tier).not.toBe("Hot"); // recent but no matching action
+  });
+
+  it("filters by deal value and can be switched off", async () => {
+    const text = rows(
+      'Amy,Lane,amy@lane.co,Office Manager,Lane Co,"Austin, TX",Meeting booked,2200,2026-10-20,',
+      'Ben,Moss,ben@moss.co,Office Manager,Moss Co,"Austin, TX",Meeting booked,180,2026-10-20,',
+    );
+    const on = await pipeline(text, withRules({ actions: ["Meeting booked"], withinDays: null, minValue: 1000 }));
+    expect(on.summary.hot).toBe(1);
+    const off = await pipeline(text, withRules({ enabled: false }));
+    expect(off.summary.hot).toBe(0);
+  });
+
+  it("reads stage, value, dates and referrals from typical CRM columns", () => {
+    const r = clean(rows('Amy,Lane,amy@lane.co,Owner,Lane Co,"San Diego, CA",Proposal sent,"$1,500",yesterday,Referral from an existing customer'));
+    const l = r.leads[0];
+    expect([l.stage, l.dealValue, l.isReferral, l.country]).toEqual(["Proposal sent", 1500, true, "United States"]);
+    expect(l.lastActivity).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

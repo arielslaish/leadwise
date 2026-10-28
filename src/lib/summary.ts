@@ -3,7 +3,7 @@
 
 import { MINUTES_SAVED_PER_ROW, TIER_ORDER, type Tier } from "@/config/rubric";
 import type { DataQuality, ImportSummary } from "./clean";
-import { classifyLead, type FlowOutcome, type FlowVariables } from "./flow";
+import { classifyLead, flowContext, type FlowOutcome, type FlowVariables } from "./flow";
 import type { ScoredLead } from "./score";
 
 export type Row = { lead: ScoredLead; flow: FlowOutcome; correction: Tier | null };
@@ -11,8 +11,9 @@ export type Corrections = Record<number, Tier>; // lead id -> tier the user says
 
 export function buildRows(leads: ScoredLead[], vars: FlowVariables, corrections: Corrections = {}): Row[] {
   const rank = (t: Tier) => TIER_ORDER.indexOf(t);
+  const ctx = flowContext(leads, vars.hotRules);
   return leads
-    .map((lead) => ({ lead, flow: classifyLead(lead, vars), correction: corrections[lead.id] ?? null }))
+    .map((lead) => ({ lead, flow: classifyLead(lead, vars, ctx), correction: corrections[lead.id] ?? null }))
     .sort((a, b) => rank(a.flow.tier) - rank(b.flow.tier) || b.lead.score - a.lead.score);
 }
 
@@ -55,7 +56,7 @@ export function summarize(rows: Row[], imp: ImportSummary) {
       invalidPhones: c("phone_invalid"),
       suspiciousNames: c("name_suspicious") + c("placeholder"),
       locationUnavailable: c("location_missing"),
-      inconsistentFields: c("location_conflict") + c("size_unreadable"),
+      inconsistentFields: c("location_conflict") + c("size_unreadable") + c("domain_mismatch") + c("date_unreadable") + c("value_unreadable"),
     },
     duplicates: {
       merged: imp.duplicatesMerged,
@@ -94,6 +95,11 @@ export function csvRecords(rows: Row[]) {
     tier: flow.tier,
     data_quality: lead.quality,
     data_issues: lead.issues.map((x) => x.label).join("; ") || "None",
+    stage: lead.stage,
+    last_activity: lead.lastActivity ?? "Unavailable",
+    deal_value: lead.dealValue ?? "Unavailable",
+    referral: lead.isReferral ? "Yes" : "No",
+    hot_signals: lead.actions.join("; ") || "None",
     intent: lead.intent,
     intent_strength: lead.intentStrength,
     intent_evidence: lead.intentEvidence || "None",

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   // Lists over the limit are processed up to MAX_ROWS; the rest are counted and reported, not dropped silently.
   const cleaned = cleanRows(allRows, emptyRows);
   try {
-    const leads = await scoreLeads(cleaned.leads);
+    const leads = await scoreLeads(cleaned.leads, cleaned.summary.missingColumns);
     return Response.json({ import: cleaned.summary, owner, leads });
   } catch (err) {
     const status = err instanceof Anthropic.RateLimitError ? 429 : 502;

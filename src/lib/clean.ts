@@ -14,6 +14,9 @@ export type Issue = { code: string; label: string; severity: Severity };
 export type DataQuality = "Valid" | "Needs review" | "Invalid";
 export type Segment = "SMB" | "Mid-Market" | "Enterprise" | "Unavailable";
 
+export const STAGES = ["New", "Contacted", "Follow-up", "Qualified", "Meeting booked", "Proposal sent", "Nurture", "Unresponsive", "Recycled", "Closed won", "Closed lost", "Unavailable"] as const;
+export type Stage = (typeof STAGES)[number];
+
 export type MergedRecord = { rowNumber: number; name: string; email: string; matchedOn: string };
 
 export type CleanLead = {
@@ -34,6 +37,10 @@ export type CleanLead = {
   region: string;
   sources: string[];
   notes: string;
+  lastActivity: string | null; // ISO date of the last touch, when the file has one
+  stage: Stage; // pipeline status, normalized
+  dealValue: number | null; // estimated value / spend, as given
+  isReferral: boolean;
   freeEmail: boolean;
   quality: DataQuality;
   issues: Issue[];
@@ -51,7 +58,12 @@ export type ImportSummary = {
   fuzzyDuplicates: number;
   possibleDuplicatePairs: number;
   leadsOut: number;
+  missingColumns: ScoredColumn[]; // scoring criteria the file has no data for (excluded, not penalized)
+  hasActivityDates: boolean;
+  hasDealValues: boolean;
 };
+
+export type ScoredColumn = "Company size" | "Industry" | "Title" | "Notes";
 
 export type CleanResult = { summary: ImportSummary; leads: CleanLead[] };
 
@@ -59,7 +71,7 @@ type RawRow = {
   rowNumber: number;
   firstName?: string; lastName?: string; email?: string; phone?: string; title?: string;
   company?: string; companySize?: string; industry?: string; city?: string; state?: string;
-  country?: string; source?: string; notes?: string;
+  country?: string; source?: string; notes?: string; lastActivity?: string; stage?: string; value?: string;
 };
 type Field = Exclude<keyof RawRow, "rowNumber">;
 
@@ -83,6 +95,12 @@ const HEADER_ALIASES: Record<string, Field | "fullName"> = {
   country: "country", country_region: "country", region: "country", hq_country: "country", country_code: "country",
   source: "source", lead_source: "source", channel: "source",
   notes: "notes", note: "notes", comments: "notes", comment: "notes", description: "notes", message: "notes",
+  last_contacted: "lastActivity", last_contact: "lastActivity", last_contact_date: "lastActivity", last_activity: "lastActivity",
+  last_activity_date: "lastActivity", last_touch: "lastActivity", last_touched: "lastActivity", last_engagement: "lastActivity",
+  last_interaction: "lastActivity", activity_date: "lastActivity", last_contacted_date: "lastActivity",
+  status: "stage", lead_status: "stage", stage: "stage", lifecycle_stage: "stage", deal_stage: "stage", pipeline_stage: "stage",
+  estimated_monthly_spend: "value", monthly_spend: "value", deal_value: "value", deal_size: "value", amount: "value",
+  budget: "value", arr: "value", mrr: "value", estimated_value: "value", opportunity_amount: "value", potential_value: "value",
 };
 
 // Header normalizer: "Job Title", "job-title", "JobTitle " and a BOM all map the same way.
@@ -181,7 +199,61 @@ function toSegment(n: number | null): Segment {
 
 // ---------- data quality ----------
 
-const suspiciousName = (s: string) => /\d/.test(s) || /^(.)\1{2,}$/i.test(s) || (s.length === 1 && !/^[a-z]\.?$/i.test(s));
+// Digits, no letters at all ("???"), repeated characters, or keyboard mashing ("ajshdkjasd").
+const suspiciousName = (s: string) =>
+  /\d/.test(s) ||
+  !/\p{L}/u.test(s) ||
+  /^(.)\1{2,}$/i.test(s) ||
+  /[bcdfghjklmnpqrstvwxz]{5,}/i.test(s) ||
+  (s.length === 1 && !/^[a-z]\.?$/i.test(s));
+
+// ---------- dates, values, stages ----------
+
+const DAY = 86_400_000;
+/** ISO yyyy-mm-dd from common export formats and relative words; null if unreadable. */
+export function parseDate(raw: string, now = new Date()): string | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  if (s === "today") return iso(now);
+  if (s === "yesterday") return iso(new Date(now.getTime() - DAY));
+  const ago = s.match(/^(\d+)\s*(day|days|d|week|weeks|w)\s*ago$/);
+  if (ago) return iso(new Date(now.getTime() - Number(ago[1]) * (ago[2].startsWith("w") ? 7 : 1) * DAY));
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return iso(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])));
+  m = s.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})$/); // US style mm/dd/yyyy
+  if (m) {
+    const y = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+    return iso(new Date(Date.UTC(y, +m[1] - 1, +m[2])));
+  }
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? null : iso(new Date(t));
+}
+
+function parseValue(raw: string): number | null {
+  const s = raw.replace(/[$€£₪,\s]/g, "").toLowerCase();
+  const m = s.match(/^(\d+(?:\.\d+)?)(k)?$/);
+  return m ? Math.round(parseFloat(m[1]) * (m[2] ? 1000 : 1)) : null;
+}
+
+const STAGE_RULES: [Stage, RegExp][] = [
+  ["Closed won", /won|customer|signed/],
+  ["Closed lost", /lost|disqualif|dead/],
+  ["Proposal sent", /proposal|quote|negotiat/],
+  ["Meeting booked", /meeting|demo (booked|scheduled)|booked/],
+  ["Qualified", /qualified|sql|opportunity/],
+  ["Follow-up", /follow/],
+  ["Contacted", /contacted|attempt|working|in progress/],
+  ["Unresponsive", /unresponsive|no response|ghost/],
+  ["Recycled", /recycl/],
+  ["Nurture", /nurtur/],
+  ["New", /^new|open|uncontacted|mql/],
+];
+export const toStage = (raw: string): Stage => {
+  const s = raw.trim().toLowerCase();
+  if (!s) return "Unavailable";
+  return STAGE_RULES.find(([, re]) => re.test(s))?.[0] ?? "Unavailable";
+};
 
 export function assessQuality(r: RawRow, lead: Omit<CleanLead, "quality" | "issues">): Issue[] {
   const issues: Issue[] = [];
@@ -211,6 +283,15 @@ export function assessQuality(r: RawRow, lead: Omit<CleanLead, "quality" | "issu
 
   if (!lead.company) add("company_missing", "Missing company", lead.freeEmail || !email ? "error" : "warning");
   if (!lead.title) add("title_missing", "Missing job title", "warning");
+  if (r.lastActivity && !lead.lastActivity) add("date_unreadable", `Unreadable activity date "${r.lastActivity}"`, "warning");
+  if (r.value && lead.dealValue == null) add("value_unreadable", `Unreadable value "${r.value}"`, "warning");
+  // A business email whose domain shares nothing with the company name is worth a second look.
+  if (lead.company && email && EMAIL_RE.test(email) && !lead.freeEmail) {
+    const dom = (email.split("@")[1] ?? "").split(".")[0].replace(/[^a-z0-9]/g, "");
+    const co = normCompany(lead.company);
+    const overlap = dom.length >= 4 && co.length >= 4 && (co.includes(dom) || dom.includes(co) || co.slice(0, 4) === dom.slice(0, 4));
+    if (dom && co && !overlap) add("domain_mismatch", `Email domain doesn't match company "${lead.company}"`, "warning");
+  }
   if (r.companySize && lead.companySize == null) add("size_unreadable", `Company size unreadable "${r.companySize}"`, "warning");
   if (lead.region === UNAVAILABLE) add("location_missing", "Location unavailable", "warning");
   if (r.city && r.country && locationConflict(r.city, r.country)) add("location_conflict", `City "${r.city}" doesn't match country "${r.country}"`, "warning");
@@ -306,6 +387,10 @@ function mergeInto(keep: CleanLead, other: CleanLead, matchedOn: string) {
     keep.country = other.country;
     keep.region = other.region;
   }
+  if (other.lastActivity && (!keep.lastActivity || other.lastActivity > keep.lastActivity)) keep.lastActivity = other.lastActivity;
+  if (keep.dealValue == null) keep.dealValue = other.dealValue;
+  if (keep.stage === "Unavailable") keep.stage = other.stage;
+  keep.isReferral ||= other.isReferral;
   const altEmail = other.email && normEmail(other.email) !== normEmail(keep.email) ? `Alt email: ${other.email}` : "";
   keep.sources = [...new Set([...keep.sources, ...other.sources])];
   keep.notes = [...new Set([keep.notes, other.notes, altEmail].filter(Boolean))].join(" | ");
@@ -342,6 +427,10 @@ function buildLead(r: RawRow, id: number): CleanLead {
     region: place.region,
     sources: r.source ? [r.source] : [],
     notes: r.notes ?? "",
+    lastActivity: r.lastActivity ? parseDate(r.lastActivity) : null,
+    stage: toStage(r.stage ?? ""),
+    dealValue: r.value ? parseValue(r.value) : null,
+    isReferral: /referral|referred/i.test(`${r.source ?? ""} ${r.notes ?? ""}`),
     freeEmail: FREE_DOMAINS.has(domain),
     merged: [],
     possibleDuplicateRows: [],
@@ -405,6 +494,18 @@ export function cleanRows(allRows: RawRow[], emptyRows = 0): CleanResult {
       fuzzyDuplicates: fuzzy,
       possibleDuplicatePairs: possible,
       leadsOut: out.length,
+      missingColumns: (
+        [
+          ["Company size", "companySize"],
+          ["Industry", "industry"],
+          ["Title", "title"],
+          ["Notes", "notes"],
+        ] as const
+      )
+        .filter(([, f]) => !rows.some((r) => r[f]?.trim()))
+        .map(([label]) => label),
+      hasActivityDates: out.some((l) => l.lastActivity),
+      hasDealValues: out.some((l) => l.dealValue != null),
     },
     leads: out,
   };

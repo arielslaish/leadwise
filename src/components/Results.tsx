@@ -8,6 +8,7 @@ import type { Tier } from "@/config/rubric";
 import { defaultFlowVariables, type FlowVariables } from "@/lib/flow";
 import { buildRows, csvRecords, summarize, type Corrections } from "@/lib/summary";
 import { AuditPanel, ImportPanel } from "./Audit";
+import { HotRulesCard } from "./HotRulesCard";
 import { Breakdown } from "./Breakdown";
 import { FlowCard } from "./FlowCard";
 import { downloadPdf } from "@/lib/report";
@@ -133,6 +134,14 @@ export function Results({ result, fileName, onReset }: { result: ScoreResponse; 
             <FlowCard vars={flowVars} onChange={setFlowVars} outcomes={rows.map((r) => r.flow)} />
           </div>
         </div>
+
+        <HotRulesCard
+          rules={flowVars.hotRules}
+          onChange={(hotRules) => setFlowVars({ ...flowVars, hotRules })}
+          rows={rows}
+          imp={result.import}
+          hotThreshold={flowVars.hotThreshold}
+        />
 
         <HireMe />
 

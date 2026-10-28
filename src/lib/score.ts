@@ -19,7 +19,8 @@ import {
   type IntentStrength,
   type Seniority,
 } from "@/config/rubric";
-import type { CleanLead } from "./clean";
+import type { CleanLead, ScoredColumn } from "./clean";
+import type { HotAction } from "./flow";
 
 const client = new Anthropic();
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-5-5";
@@ -42,7 +43,8 @@ type Classification = z.infer<typeof ClassifySchema>["results"][number];
 export type ScoreLine = { criterion: string; value: string; points: number; max: number };
 
 export type ScoredLead = CleanLead & {
-  score: number; // 0-100, the sum of `breakdown`
+  score: number; // 0-100: breakdown points / available points, rescaled to 100
+  actions: HotAction[]; // concrete signals a user can define "Hot" by
   breakdown: ScoreLine[];
   seniority: Seniority;
   industryFit: IndustryFit;
@@ -57,7 +59,7 @@ export type ScoredLead = CleanLead & {
 const SYSTEM = `You classify B2B sales leads for a revenue team. You do NOT score them; code adds up points from your labels.
 
 For each lead return:
-- seniority: C-level, VP, Director, Manager, IC, or Unavailable (no title). Founders and "Head of" count as VP, or C-level at companies under 20 people.
+- seniority: C-level, VP, Director, Manager, IC, or Unavailable (no title). Founders and "Head of" count as VP, or C-level at companies under 20 people. "Chief of Staff" is Director, not C-level.
 - industryFit: Core (${rubric.industry.tiers[0].examples}), Adjacent (${rubric.industry.tiers[1].examples}), Other, or Unavailable (no industry and nothing in the company name or notes to infer it).
 - intent: the STRONGEST buying signal in the notes, exactly one of:
   "Pricing or demo request" (asked for pricing, a quote, a demo or a trial),
@@ -93,6 +95,7 @@ const localEnabled = () => !process.env.ANTHROPIC_API_KEY && process.env.NODE_EN
 export function seniorityOf(title: string): Seniority {
   const t = title.toLowerCase();
   if (!t.trim()) return "Unavailable";
+  if (/chief of staff|executive assistant to/.test(t)) return "Director";
   if (/\b(c[a-z]{1,2}o|chief|founder|co-founder|owner|president|managing director)\b/.test(t)) return "C-level";
   if (/\b(vp|svp|evp|vice president|head of)\b/.test(t)) return "VP";
   if (/\b(director|dir\.)\b/.test(t)) return "Director";
@@ -143,7 +146,16 @@ export function classifyLocally(l: CleanLead): Classification {
 
 // ---------- points ----------
 
-export function scoreFrom(l: CleanLead, c: Classification): Pick<ScoredLead, "score" | "breakdown"> {
+// Which criterion depends on which column. If the whole file lacks a column, that
+// criterion is left out and the score is rescaled, instead of costing every lead points.
+const NEEDS: Record<string, ScoredColumn> = {
+  [rubric.companySize.label]: "Company size",
+  [rubric.industry.label]: "Industry",
+  [rubric.seniority.label]: "Title",
+  [rubric.intent.label]: "Notes",
+};
+
+export function scoreFrom(l: CleanLead, c: Classification, missing: ScoredColumn[] = []): Pick<ScoreBits, "score" | "breakdown"> {
   const size = rubric.companySize.bands.find((b) => b.band === l.sizeBand) ?? rubric.companySize.bands.at(-1)!;
   const sen = rubric.seniority.levels.find((s) => s.level === c.seniority)!;
   const ind = rubric.industry.tiers.find((t) => t.fit === c.industryFit)!;
@@ -165,7 +177,31 @@ export function scoreFrom(l: CleanLead, c: Classification): Pick<ScoredLead, "sc
       max: rubric.completeness.weight,
     },
   ];
-  return { score: breakdown.reduce((s, b) => s + b.points, 0), breakdown };
+  const used = breakdown.map((b) =>
+    missing.includes(NEEDS[b.criterion]) ? { ...b, value: "Not in your file", points: 0, max: 0 } : b,
+  );
+  const max = used.reduce((s, b) => s + b.max, 0) || 1;
+  return { score: Math.round((used.reduce((s, b) => s + b.points, 0) / max) * 100), breakdown: used };
+}
+
+type ScoreBits = { score: number; breakdown: ScoreLine[] };
+
+const STAGE_ACTIONS: Partial<Record<CleanLead["stage"], HotAction>> = {
+  "Meeting booked": "Meeting booked",
+  "Proposal sent": "Proposal sent",
+  Qualified: "Qualified",
+};
+const INTENT_ACTIONS: Partial<Record<Intent, HotAction>> = {
+  "Pricing or demo request": "Pricing or demo request",
+  "Direct purchase intent": "Direct purchase intent",
+  "Contract renewal coming up": "Contract renewal",
+  "Expansion / multiple locations": "Expansion",
+  "Evaluating vendors": "Evaluating vendors",
+};
+export function actionsOf(l: CleanLead, intent: Intent): HotAction[] {
+  return [INTENT_ACTIONS[intent], STAGE_ACTIONS[l.stage], l.isReferral ? ("Referral" as const) : undefined].filter(
+    (a): a is HotAction => Boolean(a),
+  );
 }
 
 async function classifyChunk(leads: CleanLead[]): Promise<Classification[]> {
@@ -186,7 +222,7 @@ async function classifyChunk(leads: CleanLead[]): Promise<Classification[]> {
 
 const CHUNK_SIZE = 10;
 
-export async function scoreLeads(leads: CleanLead[]): Promise<ScoredLead[]> {
+export async function scoreLeads(leads: CleanLead[], missing: ScoredColumn[] = []): Promise<ScoredLead[]> {
   const scorable = leads.filter((l) => l.quality !== "Invalid");
   const byId = new Map<number, Classification>();
   let source: ScoredLead["scoredBy"] = "rules";
@@ -211,7 +247,8 @@ export async function scoreLeads(leads: CleanLead[]): Promise<ScoredLead[]> {
       const info = intentInfo(c.intent);
       return {
         ...l,
-        ...scoreFrom(l, c),
+        ...scoreFrom(l, c, missing),
+        actions: l.quality === "Invalid" ? [] : actionsOf(l, c.intent),
         seniority: c.seniority,
         industryFit: c.industryFit,
         intent: c.intent,
